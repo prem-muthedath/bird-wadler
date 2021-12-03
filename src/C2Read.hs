@@ -525,11 +525,24 @@ prop_readTreeTuple = forAll myTuple $ \(x, y) ->
 
 -- | run all `Tree` QuickCheck tests.
 qcTree :: IO ()
-qcTree = do
-  quickCheck $ prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
-  quickCheck $ prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
-  quickCheck prop_readTreeList
-  quickCheck prop_readTreeTuple
+qcTree = mapM_ (\(x :: String, y :: Property) ->
+    do putStrLn $ "--- " <> x <> " ---"
+       quickCheck y) tests
+  where tests :: [(String, Property)]
+        tests = [
+           ("readsPrec tree",
+            prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
+           ),
+           ("readsPrecT tree",
+            prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
+           ),
+           ("readsPrec tree list",
+            prop_readTreeList
+           ),
+           ("readsPrec tree tuple",
+            prop_readTreeTuple
+           )
+          ]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
