@@ -8,7 +8,7 @@ module C2Strings where
 -- | width of a given string.
 width :: String -> Int
 width [] = 0
-width (x:xs) = 1 + width xs
+width (_:xs) = 1 + width xs
 
 -- | returns a string of space characters whose width is `n`.
 space :: Int -> String

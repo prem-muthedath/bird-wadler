@@ -87,7 +87,7 @@ module C2Show where
 --        showList = showList__ (showsPrec 0)
 
 infixr 5 :^:
-data Tree a =  Leaf a  |  Tree a :^: Tree a
+data Tree a =  Leaf a  |  Tree a :^: Tree a deriving Eq
 
 instance (Show a) => Show (Tree a) where
        showsPrec d (Leaf m) = showParen (d > app_prec) $
@@ -110,13 +110,14 @@ testTree :: IO ()
 testTree = mapM_ putStrLn computations
   where computations = [
             "1. Leaf 1 :^: (Leaf 2 :^: Leaf 3)",
-            "= " <> show (Leaf 1 :^: Leaf 2 :^: Leaf 3),
+            "= " <> show ((Leaf 1 :^: Leaf 2 :^: Leaf 3) :: Tree Int),
             "2. (Leaf 1 :^: Leaf 2) :^: Leaf 3",
-            "= " <> show ((Leaf 1 :^: Leaf 2) :^: Leaf 3),
+            "= " <> show (((Leaf 1 :^: Leaf 2) :^: Leaf 3) :: Tree Int),
             "3. [Leaf 15, Leaf 6 :^: (Leaf 7 :^: Leaf 8)]",
-            "= " <> show ([Leaf 15, Leaf 6 :^: Leaf 7 :^: Leaf 8]),
+            "= " <> show ([Leaf 15, Leaf 6 :^: Leaf 7 :^: Leaf 8] :: [Tree Int]),
             "4. (Leaf 1 :^: Leaf 2 :^: Leaf 3, Leaf 5 :^: (Leaf 6 :^: Leaf 7))",
-            "= " <> show ((Leaf 1 :^: Leaf 2 :^: Leaf 3, Leaf 5 :^: Leaf 6 :^: Leaf 7))
+            "= " <> show ((Leaf 1 :^: Leaf 2 :^: Leaf 3, Leaf 5 :^: Leaf 6 :^: Leaf 7)
+                        :: (Tree Int, Tree Int))
           ]
 
 --------------------------------------------------------------------------------

@@ -8,12 +8,13 @@
 
 --------------------------------------------------------------------------------
 module C2Num where
+
 -- | first attempt.
 improve' :: Fractional a => a -> a -> a
 improve' x y = (y + x/y)/2.0
 
 satis' :: forall a. (Fractional a, Ord a) => a -> a -> Bool
-satis' x y = abs (y ^ 2 - x) < eps
+satis' x y = abs (y ^ (2 :: Int)  - x) < eps
   where eps :: a
         eps = 0.0001
 
@@ -31,7 +32,7 @@ sqrt2 :: forall a. (Fractional a, Ord a) => a -> a
 sqrt2 x | x < 0 = error "square root computed only for positive numbers."
         | otherwise = until' satis improve x
   where satis :: a -> Bool
-        satis y = abs (y ^ 2 - x) < eps
+        satis y = abs (y ^ (2 :: Int) - x) < eps
         improve :: a -> a
         improve y = (y + x/y)/2.0
         eps :: a
@@ -58,13 +59,13 @@ sqrt3 :: forall a. (Fractional a, Ord a) => a -> a
 sqrt3 x | x < 0 = error "square root computed only for positive numbers."
         | otherwise = newton f x
   where f :: a -> a
-        f y = y ^ 2 - x
+        f y = y ^ (2 :: Int) - x
 
 -- computes cube root.
 cubrt :: forall a. (Fractional a, Ord a) => a -> a
 cubrt x | x < 0 = error "cube root computed only for positive numbers."
         | otherwise = newton f x
   where f :: a -> a
-        f y = y ^ 3 - x
+        f y = y ^ (3 :: Int) - x
 
 --------------------------------------------------------------------------------

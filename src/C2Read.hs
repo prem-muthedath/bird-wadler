@@ -120,11 +120,28 @@ module C2Read where
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
-import C2Show
+import Test.QuickCheck
+import Control.Monad (liftM, liftM2)
+
 --------------------------------------------------------------------------------
 -- | example 1: `Read` instance for `Tree` that has a custom `Show` instance.
 -- source: chapter 11, `specification of derived instances', `section 5`, 
 -- haskell 2010 report @ https://tinyurl.com/nxh9d2y
+
+infixr 5 :^:
+data Tree a =  Leaf a  |  Tree a :^: Tree a deriving Eq
+
+instance (Show a) => Show (Tree a) where
+       showsPrec d (Leaf m) = showParen (d > app_prec) $
+            showString "Leaf " . showsPrec (app_prec+1) m
+         where app_prec = 10
+
+       showsPrec d (u :^: v) = showParen (d > up_prec) $
+            showsPrec (up_prec+1) u .
+            showString " :^: "      .
+            showsPrec (up_prec+1) v
+         where up_prec = 5
+         -- NOTE: right associativity of :^: is ignored!
 
 -- | `Read` instance for `Tree`
 instance (Read a) => Read (Tree a) where
@@ -241,15 +258,17 @@ instance (Read a) => Read (Tree a) where
   --  `readsPrec` gives  a 2-element list (see above), but only the 1st element 
   --  satisfies the condition `lex t = ("", "")`, so we get
   --   = Leaf 1 :^: Leaf 2 :^: Leaf 3
-  readsPrec d r =  readParen' (d > up_prec)
-                     (\r -> [(u:^:v, w) |
+  readsPrec d0 r0 = readParen' (d0 > up_prec)
+                      (\r -> [(u:^:v, w) |
                              (u, s)     :: (Tree a, String) <- readsPrec (up_prec+1) r,
                              (":^:", t) :: (String, String) <- lex s,
-                             (v, w)     :: (Tree a, String) <- readsPrec (up_prec+1) t]) r
-                ++ readParen' (d > app_prec)
-                     (\r -> [(Leaf m, t) |
+                             (v, w)     :: (Tree a, String) <- readsPrec (up_prec+1) t])
+                      r0
+                    ++ readParen' (d0 > app_prec)
+                        (\r -> [(Leaf m, t) |
                              ("Leaf", s)  :: (String, String) <- lex r,
-                             (m, t)       :: (a, String)      <- readsPrec (app_prec+1) s]) r
+                             (m, t)       :: (a, String)      <- readsPrec (app_prec+1) s])
+                        r0
                 where app_prec = 10
                       up_prec = 5
 
@@ -287,7 +306,14 @@ instance (Read a) => Read (Tree a) where
 --      :: [(Tree Int, String)]
 --      = [(Leaf 1 :^: Leaf 2 :^: Leaf 3 :^: Leaf 4,"")]
 
--- also, tested `readsPrecT` (by having it as `readsPrec`) for tuple & list:
+-- NOTE: `readsPrecT` can NOT parse a list of `Tree a`, as its return type is 
+-- `Tree a`, not `[Tree a]`; ditto for a `Tree` tuple. on the other hand, since 
+-- the return type of `readsPrec` is `Reads a`, it can return any `a`, including 
+-- `Tree a`, or `[Tree a]`, or `(Tree a, Tree a)`. i also noticed that if you 
+-- set `readsPrec = readsPrecT` in `Read` instance of `Tree`, then it indeed 
+-- reads lists & tuples, not sure why though.
+
+-- tested `readsPrecT` (by having it as `readsPrec`) for tuple & list:
 
 --      read "(Leaf 1, Leaf 2 :^: Leaf 3)" :: (Tree Int, Tree Int)
 --        = (Leaf 1,Leaf 2 :^: Leaf 3)
@@ -341,23 +367,25 @@ instance (Read a) => Read (Tree a) where
 --        readsPrecT 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: [(Tree Int, String)]
 --          = [(Leaf 1 :^: Leaf 2," :^: Leaf 3")]
 readsPrecT :: forall a. (Read a) => Int -> ReadS (Tree a)
-readsPrecT d r = let a1 = readsTree
-                     a2 = readsLeaf d r
-                 in case (a1, a2) of
-                      ([], [])      -> []
-                      ((x:xs), _)   -> a1
-                      ([], (x:xs))  -> a2
+readsPrecT d0 r0 = let a1 = readsTree
+                       a2 = readsLeaf
+                   in case (a1, a2) of
+                      ([], [])     -> []
+                      ((_:_), _)   -> a1
+                      ([], (_:_))  -> a2
  where readsTree :: [(Tree a, String)]
-       readsTree = readParen' (d > up_prec)
+       readsTree = readParen' (d0 > up_prec)
          (\r -> [(u:^:v, w) |
                  (u, s)     :: (Tree a, String) <- readsPrecT (up_prec+1) r,
                  (":^:", t) :: (String, String) <- lex s,
-                 (v, w)     :: (Tree a, String) <- readsPrecT (up_prec+1) t]) r
-       readsLeaf :: Int -> ReadS (Tree a)
-       readsLeaf d r' = readParen' (d > app_prec)
+                 (v, w)     :: (Tree a, String) <- readsPrecT (up_prec+1) t])
+         r0
+       readsLeaf :: [(Tree a, String)]
+       readsLeaf = readParen' (d0 > app_prec)
          (\r -> [(Leaf m, t) |
                  ("Leaf", s)  :: (String, String) <- lex r,
-                 (m, t)       :: (a, String)      <- readsPrec (app_prec+1) s]) r'
+                 (m, t)       :: (a, String)      <- readsPrec (app_prec+1) s])
+         r0
        app_prec = 10
        up_prec  = 5
 
@@ -379,6 +407,7 @@ readParen' b g  =  if b then mandatory else optional
                                                 (x,t)   :: (a, String)      <- optional s,
                                                 (")",u) :: (String, String) <- lex t ]
 
+--------------------------------------------------------------------------------
 -- | run `read`, `readsPrec`, `readsPrecT` on strings to yield `Tree` values.
 testTree :: IO ()
 testTree = do
@@ -404,7 +433,7 @@ testTree = do
     print (read "[Leaf 1, Leaf 2 :^: Leaf 3]" :: [Tree Int])
     putStr "11. read \"(Leaf 1 :^: Leaf 2) :^: Leaf 3\" = "
     print (read "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: Tree Int)
-    putStr "12. readsPrec 0 \"(Leaf 1 :^: Leaf 2) :^: Leaf 3\" = "
+    putStr "12. readsPrec 0 \"[(Leaf 1 :^: Leaf 2) :^: Leaf 3]\" = "
     print (readsPrec 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: [(Tree Int, String)])
     putStr "13. readsPrecT 0 \"(Leaf 1 :^: Leaf 2) :^: Leaf 3\" = "
     print (readsPrecT 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: [(Tree Int, String)])
@@ -412,6 +441,95 @@ testTree = do
     print (readsPrec 0 "Leaf 1 :^: Leaf 2 :^: Leaf 3" :: [(Tree Int, String)])
     putStr "15. readsPrecT 0 \"Leaf 1 :^: Leaf 2 :^: Leaf 3\" = "
     print (readsPrecT 0 "Leaf 1 :^: Leaf 2 :^: Leaf 3" :: [(Tree Int, String)])
+
+--------------------------------------------------------------------------------
+-- | QuickCheck tests.
+
+-- | `Arbitrary` instance for `Tree`.
+instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree a) where
+  arbitrary = sized arbTree
+
+-- | helper functions for implementing arbitrary.
+-- | generator for Tree type.
+arbTree :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree a)
+arbTree 0 = liftM Leaf (arbitrary :: Gen a)
+arbTree n = frequency [
+      (1, liftM Leaf (arbitrary :: Gen a)),
+      (4, liftM2 (:^:) (arbTree (n `div` 2)) (arbTree (n `div` 2)))
+    ]
+
+-- | quickcheck property to test `Tree` read.
+prop_readTree :: (Int -> ReadS (Tree Int)) -> Property
+prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $ \x ->
+    classify (isLeaf x) "leaf" $
+    classify (depth x > 3) "depth > 3" $
+    classify (ldepth x > 3) "left depth > 3" $
+    classify (rdepth x > 3) "right depth > 3" $
+    (x,"") `elem` (f 0 (showsPrec 0 x ""))
+
+-- | some helper functions.
+isLeaf :: Tree a -> Bool
+isLeaf (Leaf _) = True
+isLeaf _        = False
+
+depth :: Tree a -> Int
+depth (Leaf _)  = 1
+depth (l :^: r) = 1 + max (depth l) (depth r)
+
+ldepth :: Tree a -> Int
+ldepth (Leaf _)  = 1
+ldepth (l :^: _) = 1 + ldepth l
+
+rdepth :: Tree a -> Int
+rdepth (Leaf _)  = 1
+rdepth (_ :^: r) = 1 + rdepth r
+
+-- | quickcheck property to test `Tree` list read.
+prop_readTreeList :: Property
+prop_readTreeList = forAll myList $ \xs ->
+    classify (xs==[]) "empty" $
+    classify (length xs == 1) "have 1 element" $
+    classify (length xs > 1) "have > 1 element" $
+    -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below line 
+    -- of code, as `readPrecT` returns `ReadS (Tree a)`, not `ReadS [Tree a]`.  
+    -- on the other hand, `readsPrec` returns `Reads a`, so it can handle `Reads 
+    -- [Tree a]` as well. if you want to use `readsPrecT` for reading lists, you 
+    -- have to set `readsPrec = readsPrecT` in the `Read` instance for `Tree`.  
+    -- i am not clear why such an equivalence works, but it indeed does!
+    (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+  where -- | generate a random list of `Tree Int`.
+        -- for `<$>` and `<*>`, see https://tinyurl.com/42h7z9vn (so)
+        -- ((:) <$> (arbitrary :: Gen (Tree Int)))
+        -- :: Gen ([Tree Int] -> [Tree Int])
+        -- (((:) <$> (arbitrary :: Gen (Tree Int))) <*> myList)
+        -- :: Gen ([Tree Int])
+        myList :: Gen [Tree Int]
+        myList = frequency
+          [ (1, return [])
+          , (4, ((:) <$> (arbitrary :: Gen (Tree Int))) <*> myList)
+          ]
+
+-- | quickcheck property to test `Tree` tuple read.
+prop_readTreeTuple :: Property
+prop_readTreeTuple = forAll myTuple $ \(x, y) ->
+    classify (isLeaf x) "fst is leaf" $
+    classify (isLeaf y) "snd is leaf" $
+    classify (depth x > 3) "fst depth > 3" $
+    classify (depth y > 3) "snd depth > 3" $
+    ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+  where myTuple :: Gen (Tree Int, Tree Int)
+        myTuple = do
+          x1 <- arbitrary :: Gen (Tree Int)
+          y1 <- arbitrary :: Gen (Tree Int)
+          return (x1, y1)
+
+-- | run all `Tree` QuickCheck tests.
+qcTree :: IO ()
+qcTree = do
+  quickCheck $ prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
+  quickCheck $ prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
+  quickCheck prop_readTreeList
+  quickCheck prop_readTreeTuple
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -473,15 +591,15 @@ instance (Show a) => Show (SomeType a) where
 -- read "(3 4)" = Mix Type 3 Type 4
 --
 instance (Read a) => Read (SomeType a) where
-  readsPrec d r = readMix r ++ readType r
+  readsPrec d0 r0 = readMix r0 ++ readType r0
       where readMix :: String -> [(SomeType a, String)]
             readMix = readParen' True $ \r -> do
-              (v1, r'') :: (SomeType a, String) <- readsPrec d r
-              (v2, r')  :: (SomeType a, String) <- readsPrec d r''
+              (v1, r'') :: (SomeType a, String) <- readsPrec d0 r
+              (v2, r')  :: (SomeType a, String) <- readsPrec d0 r''
               return (Mix v1 v2, r')
             readType   :: String -> [(SomeType a, String)]
             readType r = do
-              (v, r') :: (a, String) <- readsPrec d r  -- readsPrec for type `a`
+              (v, r') :: (a, String) <- readsPrec d0 r  -- readsPrec for type `a`
               return (Type v, r')
 
 -- | the definition below is equivalent to `readsPrec` for `SomeType` above.
@@ -502,20 +620,20 @@ instance (Read a) => Read (SomeType a) where
 --      show $ Mix (Mix (Type 4) (Mix (Type 5) (Type 6))) (Type 7)
 --        = "((4 (5 6)) 7)"
 readsPrecST :: forall a. (Read a) => Int -> ReadS (SomeType a)
-readsPrecST d r = let a1 = readMix_ r
-                      a2 = readType_ r
-                  in case (a1, a2) of
-                      ([], [])      -> []
-                      ((x:xs), _)   -> a1
-                      ([], (x:xs))  -> a2
+readsPrecST d0 r0 = let a1 = readMix_ r0
+                        a2 = readType_ r0
+                    in case (a1, a2) of
+                        ([], [])     -> []
+                        ((_:_), _)   -> a1
+                        ([], (_:_))  -> a2
     where readMix_ :: String -> [(SomeType a, String)]
           readMix_ = readParen' True $ \r -> do
-            (v1, r'') :: (SomeType a, String) <- readsPrecST d r
-            (v2, r')  :: (SomeType a, String) <- readsPrecST d r''
+            (v1, r'') :: (SomeType a, String) <- readsPrecST d0 r
+            (v2, r')  :: (SomeType a, String) <- readsPrecST d0 r''
             return (Mix v1 v2, r')
           readType_   :: String -> [(SomeType a, String)]
           readType_ r = do
-            (v, r') :: (a, String) <- readsPrec d r  -- readsPrec for type `a`
+            (v, r') :: (a, String) <- readsPrec d0 r  -- readsPrec for type `a`
             return (Type v, r')
 
 -- | run `read`, `readsPrec`, `readsPrecST` on strings to get `SomeType` values.
