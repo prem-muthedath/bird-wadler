@@ -447,25 +447,25 @@ testTree = do
 
 -- | `Arbitrary` instance for `Tree`.
 instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree a) where
-  arbitrary = sized arbTree
+  arbitrary = sized genTree
 
 -- | helper functions for implementing arbitrary.
 -- | generator for Tree type.
-arbTree :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree a)
-arbTree 0 = liftM Leaf (arbitrary :: Gen a)
-arbTree n = frequency [
+genTree :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree a)
+genTree 0 = liftM Leaf (arbitrary :: Gen a)
+genTree n = frequency [
       (1, liftM Leaf (arbitrary :: Gen a)),
-      (4, liftM2 (:^:) (arbTree (n `div` 2)) (arbTree (n `div` 2)))
+      (4, liftM2 (:^:) (genTree (n `div` 2)) (genTree (n `div` 2)))
     ]
 
 -- | quickcheck property to test `Tree` read.
 prop_readTree :: (Int -> ReadS (Tree Int)) -> Property
-prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $ \x ->
-    classify (isLeaf x) "leaf" $
-    classify (depth x > 3) "depth > 3" $
-    classify (ldepth x > 3) "left depth > 3" $
-    classify (rdepth x > 3) "right depth > 3" $
-    (x,"") `elem` (f 0 (showsPrec 0 x ""))
+prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $
+  \x -> classify (isLeaf x) "leaf" $
+        classify (depth x > 3) "depth > 3" $
+        classify (ldepth x > 3) "left depth > 3" $
+        classify (rdepth x > 3) "right depth > 3" $
+        (x,"") `elem` (f 0 (showsPrec 0 x ""))
 
 -- | some helper functions.
 isLeaf :: Tree a -> Bool
@@ -486,42 +486,53 @@ rdepth (_ :^: r) = 1 + rdepth r
 
 -- | quickcheck property to test `Tree` list read.
 prop_readTreeList :: Property
-prop_readTreeList = forAll myList $ \xs ->
-    classify (xs==[]) "empty" $
-    classify (length xs == 1) "have 1 element" $
-    classify (length xs > 1) "have > 1 element" $
-    -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below line 
-    -- of code, as `readPrecT` returns `ReadS (Tree a)`, not `ReadS [Tree a]`.  
-    -- on the other hand, `readsPrec` returns `Reads a`, so it can handle `Reads 
-    -- [Tree a]` as well. if you want to use `readsPrecT` for reading lists, you 
-    -- have to set `readsPrec = readsPrecT` in the `Read` instance for `Tree`.  
-    -- i am not clear why such an equivalence works, but it indeed does!
-    (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
-  where -- | generate a random list of `Tree Int`.
-        -- for `<$>` and `<*>`, see https://tinyurl.com/42h7z9vn (so)
-        -- ((:) <$> (arbitrary :: Gen (Tree Int)))
-        -- :: Gen ([Tree Int] -> [Tree Int])
-        -- (((:) <$> (arbitrary :: Gen (Tree Int))) <*> myList)
-        -- :: Gen ([Tree Int])
-        myList :: Gen [Tree Int]
-        myList = frequency
-          [ (1, return [])
-          , (4, ((:) <$> (arbitrary :: Gen (Tree Int))) <*> myList)
-          ]
+prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+          -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
+          -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, not 
+          -- `ReadS [Tree a]`.  on the other hand, `readsPrec` returns `ReadS 
+          -- a`, so it can handle `ReadS [Tree a]` as well. if you want to use 
+          -- `readsPrecT` for reading lists, you have to set `readsPrec = 
+          -- readsPrecT` in the `Read` instance for `Tree`.  i am not clear why 
+          -- such an equivalence works, but it indeed does!
+         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+
+-- | generate a random list of type `a`.
+-- for `<$>` and `<*>`, see https://tinyurl.com/42h7z9vn (so)
+-- ((:) <$> (arbitrary :: Gen a))
+-- :: Gen ([a] -> [a])
+-- (((:) <$> (arbitrary :: Gen a)) <*> myList)
+-- :: Gen [a]
+genList :: forall a. (Read a, Show a, Arbitrary a) => Gen [a]
+genList = frequency
+  [ (1, return [])
+  , (4, ((:) <$> (arbitrary :: Gen a)) <*> genList)
+  ]
 
 -- | quickcheck property to test `Tree` tuple read.
 prop_readTreeTuple :: Property
-prop_readTreeTuple = forAll myTuple $ \(x, y) ->
-    classify (isLeaf x) "fst is leaf" $
-    classify (isLeaf y) "snd is leaf" $
-    classify (depth x > 3) "fst depth > 3" $
-    classify (depth y > 3) "snd depth > 3" $
-    ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
-  where myTuple :: Gen (Tree Int, Tree Int)
-        myTuple = do
-          x1 <- arbitrary :: Gen (Tree Int)
-          y1 <- arbitrary :: Gen (Tree Int)
-          return (x1, y1)
+prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
+  \(x, y) -> classify (isLeaf x) "fst is leaf" $
+             classify (isLeaf y) "snd is leaf" $
+             classify (depth x > 3) "fst depth > 3" $
+             classify (depth y > 3) "snd depth > 3" $
+              -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
+              -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, 
+              -- not `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
+              -- returns `ReadS a`, so it can handle `ReadS (Tree a, Tree a)` as 
+              -- well.  if you want to use `readsPrecT` for reading tuples, you 
+              -- have to set `readsPrec = readsPrecT` in `Read` instance for 
+              -- `Tree`.  i am unclear why that equivalence works!
+             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+
+-- | generate a random 2-tuple of type `a`.
+genTuple :: forall a. (Read a, Show a, Arbitrary a) => Gen (a, a)
+genTuple = do
+  x1 <- arbitrary :: Gen a
+  y1 <- arbitrary :: Gen a
+  return (x1, y1)
 
 -- | run all `Tree` QuickCheck tests.
 qcTree :: IO ()
@@ -530,18 +541,18 @@ qcTree = mapM_ (\(x :: String, y :: Property) ->
        quickCheck y) tests
   where tests :: [(String, Property)]
         tests = [
-           ("readsPrec tree",
-            prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
-           ),
-           ("readsPrecT tree",
-            prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
-           ),
-           ("readsPrec tree list",
-            prop_readTreeList
-           ),
-           ("readsPrec tree tuple",
-            prop_readTreeTuple
-           )
+             ("readsPrec tree",
+              prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
+             ),
+             ("readsPrecT tree",
+              prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
+             ),
+             ("readsPrec tree list",
+              prop_readTreeList
+             ),
+             ("readsPrec tree tuple",
+              prop_readTreeTuple
+             )
           ]
 
 --------------------------------------------------------------------------------
