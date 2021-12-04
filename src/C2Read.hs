@@ -459,6 +459,15 @@ genTree n = frequency [
       (4, liftM2 (:^:) (genTree (n `div` 2)) (genTree (n `div` 2)))
     ]
 
+-- | valid `Tree` property.
+prop_validTree :: Property
+prop_validTree = forAll (arbitrary :: Gen (Tree Int)) $
+  \x -> classify (isValid x) "valid tree" $
+        isValid x
+  where isValid :: Tree a -> Bool
+        isValid (Leaf _)  = True
+        isValid (l :^: r) = (isValid l) && (isValid r)
+
 -- | quickcheck property to test `Tree` read.
 prop_readTree :: (Int -> ReadS (Tree Int)) -> Property
 prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $
@@ -538,6 +547,9 @@ genTuple = do
 -- | `Tree` QuickCheck test cases.
 treeTC :: [(String, Property)]
 treeTC = [
+           ("valid tree",
+            prop_validTree
+           ),
            ("readsPrec tree",
             prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
            ),
@@ -701,6 +713,15 @@ genSomeType n = frequency [
       (4, liftM2 Mix (genSomeType (n `div` 2)) (genSomeType (n `div` 2)))
     ]
 
+-- | valid `SomeType` property.
+prop_validSomeType :: Property
+prop_validSomeType = forAll (arbitrary :: Gen (SomeType Int)) $
+  \x -> classify (isValid x) "valid SomeType" $
+        isValid x
+  where isValid :: SomeType a -> Bool
+        isValid (Type _)  = True
+        isValid (Mix l r) = (isValid l) && (isValid r)
+
 -- | quickcheck property to test `SomeType` read.
 prop_readSomeType :: (Int -> ReadS (SomeType Int)) -> Property
 prop_readSomeType f = forAll (arbitrary :: Gen (SomeType Int)) $
@@ -761,6 +782,9 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
 -- | `SomeType` QuickCheck test cases.
 someTypeTC :: [(String, Property)]
 someTypeTC = [
+               ("valid SomeType",
+                prop_validSomeType
+               ),
                ("readsPrec SomeType",
                 prop_readSomeType (readsPrec :: (Int -> ReadS (SomeType Int)))
                ),
