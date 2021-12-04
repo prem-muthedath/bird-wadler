@@ -687,5 +687,100 @@ testSomeType = do
   print (read "((3 4), 5)" :: (SomeType Int, SomeType Int))
   putStr "10. read \"[(3 4), 5]\" = "
   print (read "[(3 4), 5]" :: [SomeType Int])
---------------------------------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- data SomeType a = Type a | Mix (SomeType a) (SomeType a) deriving Eq
+-- | QuickCheck tests.
+
+-- | `Arbitrary` instance for `SomeType`.
+instance (Read a, Show a, Arbitrary a) => Arbitrary (SomeType a) where
+  arbitrary = sized genSomeType
+
+-- | helper functions for implementing arbitrary.
+-- | generator for SomeType type.
+genSomeType :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (SomeType a)
+genSomeType 0 = liftM Type (arbitrary :: Gen a)
+genSomeType n = frequency [
+      (1, liftM Type (arbitrary :: Gen a)),
+      (4, liftM2 Mix (genSomeType (n `div` 2)) (genSomeType (n `div` 2)))
+    ]
+
+-- | quickcheck property to test `SomeType` read.
+prop_readSomeType :: (Int -> ReadS (SomeType Int)) -> Property
+prop_readSomeType f = forAll (arbitrary :: Gen (SomeType Int)) $
+  \x -> classify (isType x) "Type" $
+        classify (depthST x > 3) "depth > 3" $
+        classify (ldepthST x > 3) "left depth > 3" $
+        classify (rdepthST x > 3) "right depth > 3" $
+        (x,"") `elem` (f 0 (showsPrec 0 x ""))
+
+-- | some helper functions.
+isType :: SomeType a -> Bool
+isType (Type _) = True
+isType _        = False
+
+depthST :: SomeType a -> Int
+depthST (Type _)  = 1
+depthST (Mix l r) = 1 + max (depthST l) (depthST r)
+
+ldepthST :: SomeType a -> Int
+ldepthST (Type _)  = 1
+ldepthST (Mix l _) = 1 + ldepthST l
+
+rdepthST :: SomeType a -> Int
+rdepthST (Type _)  = 1
+rdepthST (Mix _ r) = 1 + rdepthST r
+
+-- | quickcheck property to test `SomeType` list read.
+prop_readSomeTypeList :: Property
+prop_readSomeTypeList = forAll (genList :: Gen [SomeType Int]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below 
+         -- line of code, as `readPrecT` returns `ReadS (SomeType a)`, not 
+         -- `ReadS [SomeType a]`.  on the other hand, `readsPrec` returns `ReadS 
+         -- a`, so it can handle `ReadS [SomeType a]` as well. if you want to 
+         -- use `readsPrecT` for reading lists, you have to set `readsPrec = 
+         -- readsPrecT` in the `Read` instance for `SomeType`.  i am not clear 
+         -- why such an equivalence works, but it indeed does!
+         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+
+
+-- | quickcheck property to test `SomeType` tuple read.
+prop_readSomeTypeTuple :: Property
+prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
+  \(x, y) -> classify (isType x) "fst is leaf" $
+             classify (isType y) "snd is leaf" $
+             classify (depthST x > 3) "fst depth > 3" $
+             classify (depthST y > 3) "snd depth > 3" $
+             -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
+             -- below line of code, as `readPrecT` returns `ReadS (SomeType a)`, 
+             -- not `ReadS (SomeType a, SomeType a)`.  on the other hand, 
+             -- `readsPrec` returns `ReadS a`, so it can handle `ReadS (SomeType 
+             -- a, SomeType a)` as well.  if you want to use `readsPrecT` for 
+             -- reading tuples, you have to set `readsPrec = readsPrecT` in 
+             -- `Read` instance for `Tree`. unclear why that equivalence works!
+             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+
+-- | run all `SomeType` QuickCheck tests.
+qcSomeType :: IO ()
+qcSomeType = mapM_ (\(x :: String, y :: Property) ->
+    do putStrLn $ "--- " <> x <> " ---"
+       quickCheck y) tests
+  where tests :: [(String, Property)]
+        tests = [
+             ("readsPrec SomeType",
+              prop_readSomeType (readsPrec :: (Int -> ReadS (SomeType Int)))
+             ),
+             ("readsPrecST SomeType",
+              prop_readSomeType (readsPrecST :: (Int -> ReadS (SomeType Int)))
+             ),
+             ("readsPrec SomeType list",
+              prop_readSomeTypeList
+             ),
+             ("readsPrec SomeType tuple",
+              prop_readSomeTypeTuple
+             )
+          ]
+--------------------------------------------------------------------------------
