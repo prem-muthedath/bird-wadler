@@ -124,6 +124,7 @@ import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | example 1: `Read` instance for `Tree` that has a custom `Show` instance.
 -- source: chapter 11, `specification of derived instances', `section 5`, 
 -- haskell 2010 report @ https://tinyurl.com/nxh9d2y
@@ -462,9 +463,9 @@ genTree n = frequency [
 prop_readTree :: (Int -> ReadS (Tree Int)) -> Property
 prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $
   \x -> classify (isLeaf x) "leaf" $
-        classify (depth x > 3) "depth > 3" $
-        classify (ldepth x > 3) "left depth > 3" $
-        classify (rdepth x > 3) "right depth > 3" $
+        classify (depthT x > 3) "depth > 3" $
+        classify (ldepthT x > 3) "left depth > 3" $
+        classify (rdepthT x > 3) "right depth > 3" $
         (x,"") `elem` (f 0 (showsPrec 0 x ""))
 
 -- | some helper functions.
@@ -472,17 +473,17 @@ isLeaf :: Tree a -> Bool
 isLeaf (Leaf _) = True
 isLeaf _        = False
 
-depth :: Tree a -> Int
-depth (Leaf _)  = 1
-depth (l :^: r) = 1 + max (depth l) (depth r)
+depthT :: Tree a -> Int
+depthT (Leaf _)  = 1
+depthT (l :^: r) = 1 + max (depthT l) (depthT r)
 
-ldepth :: Tree a -> Int
-ldepth (Leaf _)  = 1
-ldepth (l :^: _) = 1 + ldepth l
+ldepthT :: Tree a -> Int
+ldepthT (Leaf _)  = 1
+ldepthT (l :^: _) = 1 + ldepthT l
 
-rdepth :: Tree a -> Int
-rdepth (Leaf _)  = 1
-rdepth (_ :^: r) = 1 + rdepth r
+rdepthT :: Tree a -> Int
+rdepthT (Leaf _)  = 1
+rdepthT (_ :^: r) = 1 + rdepthT r
 
 -- | quickcheck property to test `Tree` list read.
 prop_readTreeList :: Property
@@ -516,8 +517,8 @@ prop_readTreeTuple :: Property
 prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
   \(x, y) -> classify (isLeaf x) "fst is leaf" $
              classify (isLeaf y) "snd is leaf" $
-             classify (depth x > 3) "fst depth > 3" $
-             classify (depth y > 3) "snd depth > 3" $
+             classify (depthT x > 3) "fst depth > 3" $
+             classify (depthT y > 3) "snd depth > 3" $
              -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
              -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, not 
              -- `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
@@ -534,26 +535,22 @@ genTuple = do
   y1 <- arbitrary :: Gen a
   return (x1, y1)
 
--- | run all `Tree` QuickCheck tests.
-qcTree :: IO ()
-qcTree = mapM_ (\(x :: String, y :: Property) ->
-    do putStrLn $ "--- " <> x <> " ---"
-       quickCheck y) tests
-  where tests :: [(String, Property)]
-        tests = [
-             ("readsPrec tree",
-              prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
-             ),
-             ("readsPrecT tree",
-              prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
-             ),
-             ("readsPrec tree list",
-              prop_readTreeList
-             ),
-             ("readsPrec tree tuple",
-              prop_readTreeTuple
-             )
-          ]
+-- | `Tree` QuickCheck test cases.
+treeTC :: [(String, Property)]
+treeTC = [
+           ("readsPrec tree",
+            prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
+           ),
+           ("readsPrecT tree",
+            prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
+           ),
+           ("readsPrec tree list",
+            prop_readTreeList
+           ),
+           ("readsPrec tree tuple",
+            prop_readTreeTuple
+           )
+        ]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -689,7 +686,6 @@ testSomeType = do
   print (read "[(3 4), 5]" :: [SomeType Int])
 
 --------------------------------------------------------------------------------
--- data SomeType a = Type a | Mix (SomeType a) (SomeType a) deriving Eq
 -- | QuickCheck tests.
 
 -- | `Arbitrary` instance for `SomeType`.
@@ -746,7 +742,6 @@ prop_readSomeTypeList = forAll (genList :: Gen [SomeType Int]) $
          -- why such an equivalence works, but it indeed does!
          (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
 
-
 -- | quickcheck property to test `SomeType` tuple read.
 prop_readSomeTypeTuple :: Property
 prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
@@ -763,24 +758,34 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
              -- `Read` instance for `Tree`. unclear why that equivalence works!
              ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
 
--- | run all `SomeType` QuickCheck tests.
-qcSomeType :: IO ()
-qcSomeType = mapM_ (\(x :: String, y :: Property) ->
-    do putStrLn $ "--- " <> x <> " ---"
-       quickCheck y) tests
-  where tests :: [(String, Property)]
-        tests = [
-             ("readsPrec SomeType",
-              prop_readSomeType (readsPrec :: (Int -> ReadS (SomeType Int)))
-             ),
-             ("readsPrecST SomeType",
-              prop_readSomeType (readsPrecST :: (Int -> ReadS (SomeType Int)))
-             ),
-             ("readsPrec SomeType list",
-              prop_readSomeTypeList
-             ),
-             ("readsPrec SomeType tuple",
-              prop_readSomeTypeTuple
-             )
-          ]
+-- | `SomeType` QuickCheck test cases.
+someTypeTC :: [(String, Property)]
+someTypeTC = [
+               ("readsPrec SomeType",
+                prop_readSomeType (readsPrec :: (Int -> ReadS (SomeType Int)))
+               ),
+               ("readsPrecST SomeType",
+                prop_readSomeType (readsPrecST :: (Int -> ReadS (SomeType Int)))
+               ),
+               ("readsPrec SomeType list",
+                prop_readSomeTypeList
+               ),
+               ("readsPrec SomeType tuple",
+                prop_readSomeTypeTuple
+               )
+            ]
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | run `QuickCheck` tests on all `Read` instances.
+runAllQC :: IO ()
+runAllQC = mapM_ runQC tests
+  where -- | run `QuickCheck` test case.
+        runQC :: (String, Property) -> IO ()
+        runQC (x, y) = do
+             putStrLn $ "--- " <> x <> " ---"
+             quickCheck y
+        tests :: [(String, Property)]
+        tests = treeTC ++ someTypeTC
+
 --------------------------------------------------------------------------------
