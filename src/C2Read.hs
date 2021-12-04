@@ -490,13 +490,13 @@ prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
   \xs -> classify (xs==[]) "empty" $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
-          -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
-          -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, not 
-          -- `ReadS [Tree a]`.  on the other hand, `readsPrec` returns `ReadS 
-          -- a`, so it can handle `ReadS [Tree a]` as well. if you want to use 
-          -- `readsPrecT` for reading lists, you have to set `readsPrec = 
-          -- readsPrecT` in the `Read` instance for `Tree`.  i am not clear why 
-          -- such an equivalence works, but it indeed does!
+         -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below 
+         -- line of code, as `readPrecT` returns `ReadS (Tree a)`, not `ReadS 
+         -- [Tree a]`.  on the other hand, `readsPrec` returns `ReadS a`, so it 
+         -- can handle `ReadS [Tree a]` as well. if you want to use `readsPrecT` 
+         -- for reading lists, you have to set `readsPrec = readsPrecT` in the 
+         -- `Read` instance for `Tree`.  i am not clear why such an equivalence 
+         -- works, but it indeed does!
          (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
 
 -- | generate a random list of type `a`.
@@ -518,13 +518,13 @@ prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
              classify (isLeaf y) "snd is leaf" $
              classify (depth x > 3) "fst depth > 3" $
              classify (depth y > 3) "snd depth > 3" $
-              -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
-              -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, 
-              -- not `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
-              -- returns `ReadS a`, so it can handle `ReadS (Tree a, Tree a)` as 
-              -- well.  if you want to use `readsPrecT` for reading tuples, you 
-              -- have to set `readsPrec = readsPrecT` in `Read` instance for 
-              -- `Tree`.  i am unclear why that equivalence works!
+             -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
+             -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, not 
+             -- `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
+             -- returns `ReadS a`, so it can handle `ReadS (Tree a, Tree a)` as 
+             -- well.  if you want to use `readsPrecT` for reading tuples, you 
+             -- have to set `readsPrec = readsPrecT` in `Read` instance for 
+             -- `Tree`.  i am unclear why that equivalence works!
              ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
 
 -- | generate a random 2-tuple of type `a`.
