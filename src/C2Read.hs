@@ -521,6 +521,17 @@ genList = frequency
   , (4, ((:) <$> (arbitrary :: Gen a)) <*> genList)
   ]
 
+-- | is list generated valid?
+prop_validList :: Property
+prop_validList = forAll (arbitrary :: Gen [Int]) $
+  \xs -> classify (length xs == 0) "empty list" $
+         classify (length xs == 1) "singleton list" $
+         classify (length xs > 1)  "> 1 element list" $
+         isValid xs
+  where isValid :: [a] -> Bool
+        isValid []      = True
+        isValid (_:ys)  = isValid ys
+
 -- | quickcheck property to test `Tree` tuple read.
 prop_readTreeTuple :: Property
 prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
@@ -810,6 +821,6 @@ runAllQC = mapM_ runQC tests
              putStrLn $ "--- " <> x <> " ---"
              quickCheck y
         tests :: [(String, Property)]
-        tests = treeTC ++ someTypeTC
+        tests = [("valid list", prop_validList)] ++ treeTC ++ someTypeTC
 
 --------------------------------------------------------------------------------
