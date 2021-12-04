@@ -557,23 +557,13 @@ genTuple = do
 
 -- | `Tree` QuickCheck test cases.
 treeTC :: [(String, Property)]
-treeTC = [
-           ("valid tree",
-            prop_validTree
-           ),
-           ("readsPrec tree",
-            prop_readTree (readsPrec :: (Int -> ReadS (Tree Int)))
-           ),
-           ("readsPrecT tree",
-            prop_readTree (readsPrecT :: (Int -> ReadS (Tree Int)))
-           ),
-           ("readsPrec tree list",
-            prop_readTreeList
-           ),
-           ("readsPrec tree tuple",
-            prop_readTreeTuple
-           )
-        ]
+treeTC = let f :: Int -> ReadS (Tree Int) = readsPrec
+             g :: Int -> ReadS (Tree Int) = readsPrecT
+         in [("valid tree", prop_validTree),
+             ("readsPrec tree", prop_readTree f),
+             ("readsPrecT tree", prop_readTree g),
+             ("readsPrec tree list", prop_readTreeList),
+             ("readsPrec tree tuple", prop_readTreeTuple)]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -792,23 +782,13 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
 
 -- | `SomeType` QuickCheck test cases.
 someTypeTC :: [(String, Property)]
-someTypeTC = [
-               ("valid SomeType",
-                prop_validSomeType
-               ),
-               ("readsPrec SomeType",
-                prop_readSomeType (readsPrec :: (Int -> ReadS (SomeType Int)))
-               ),
-               ("readsPrecST SomeType",
-                prop_readSomeType (readsPrecST :: (Int -> ReadS (SomeType Int)))
-               ),
-               ("readsPrec SomeType list",
-                prop_readSomeTypeList
-               ),
-               ("readsPrec SomeType tuple",
-                prop_readSomeTypeTuple
-               )
-            ]
+someTypeTC = let f :: Int -> ReadS (SomeType Int) = readsPrec
+                 g :: Int -> ReadS (SomeType Int) = readsPrecST
+             in [("valid SomeType", prop_validSomeType),
+                 ("readsPrec SomeType", prop_readSomeType f),
+                 ("readsPrecST SomeType", prop_readSomeType g),
+                 ("readsPrec SomeType list", prop_readSomeTypeList),
+                 ("readsPrec SomeType tuple", prop_readSomeTypeTuple)]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
