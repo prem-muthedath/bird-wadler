@@ -147,11 +147,11 @@ import Data.List (sort)
 years :: [Int]
 years = [1600, 2000, 1700, 1800, 1900]
 
--- first attempt, using boolean operators.
+-- | first attempt, using boolean operators.
 leap :: Int -> Bool
 leap y = (y `mod` 4 == 0) && ((y `mod` 100 /= 0) || (y `mod` 400 == 0))
 
--- second attempt, using guards & local defn.
+-- | second attempt, using guards & local defn.
 leap' :: Int -> Bool
 leap' y | y <= 0    = error "year has to be >= 1"
         | byHundred = y `mod` 400 == 0
@@ -318,7 +318,7 @@ classifys :: (Testable prop) => [Int] -> prop -> Property
 classifys xs@(a:b:c:[]) = classify (length xs == 3) "3-elem list input" .
                           classify (a + b <= c) "bad" .
                           classify (a + b > c) "triangle" .
-                          classify (a==c) "equilateral"
+                          classify (a == c) "equilateral"
 classifys _             = error "need exactly a 3-element list."
 
 --------------------------------------------------------------------------------
