@@ -798,7 +798,7 @@ runAllQC = mapM_ runQC tests
   where -- | run `QuickCheck` test case.
         runQC :: (String, Property) -> IO ()
         runQC (x, y) = do
-             putStrLn $ "--- " <> x <> " ---"
+             putStrLn $ "\n--- " <> x <> " ---"
              quickCheck y
         tests :: [(String, Property)]
         tests = [("valid list", prop_validList)] ++ treeTC ++ someTypeTC

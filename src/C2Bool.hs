@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- boolean data type: examples.
 -- usage: load this file in GHCi and invoke `leap` & `analyze` functions.
@@ -128,7 +130,13 @@
 -- otherwise =  True
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 module C2Bool where
+
+import Test.QuickCheck
+import Data.List (sort)
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | leap year calculation.
 -- leap year: divisible by 4, & if divisible by 100, then divisible by 400.
 
@@ -145,11 +153,57 @@ leap y = (y `mod` 4 == 0) && ((y `mod` 100 /= 0) || (y `mod` 400 == 0))
 
 -- second attempt, using guards & local defn.
 leap' :: Int -> Bool
-leap' y | byHundred = y `mod` 400 == 0
+leap' y | y <= 0    = error "year has to be >= 1"
+        | byHundred = y `mod` 400 == 0
         | otherwise = y `mod` 4 == 0
         where byHundred :: Bool
               byHundred = y `mod` 100 == 0
 
+--------------------------------------------------------------------------------
+-- | quickcheck testing -- leap year stuff.
+--------------------------------------------------------------------------------
+-- | property to test a leap year.
+prop_lyear :: Property
+prop_lyear = forAll genLeap $
+                \x -> lClassifys x $
+                      (leap' x == True) && (leap x == True)
+
+-- | property to test a non-leap year.
+prop_year :: Property
+prop_year = forAll (genYear notLeap) $
+                \x -> lClassifys x $
+                      (leap' x == False) && (leap x == False)
+
+-- | classification of property used in leap year testing.
+lClassifys :: (Testable prop) => Int -> prop -> Property
+lClassifys x = classify (x <= 100) "<= 100" .
+               classify (x > 100 && x <= 1000) "100 - 1000" .
+               classify (x > 1000 && x <= 2000) "1000 - 2000" .
+               classify (x > 2000 && x <= 3000) "2000 - 3000" .
+               classify (x `mod` 100 == 0) "has 00" .
+               classify (x `mod` 100 /= 0) "has no 00"
+
+-- | generate a leap year.
+genLeap :: Gen Int
+genLeap = frequency [(3, (genYear leap4)), (4, (genYear leap100))]
+
+-- | generate a year that satifies the predicate.
+genYear :: (Int -> Bool) -> Gen Int
+genYear f = (chooseInt (1, 3000)) `suchThat` f
+
+-- | `True` for a leap year divisible by both 100 & 400.
+leap100 :: Int -> Bool
+leap100 x = (x `mod` 100 == 0) && (x `mod` 400 == 0)
+
+-- | `True` for a leap year divisible only by 4.
+leap4 :: Int -> Bool
+leap4 x = (x `mod` 4 == 0) && (x `mod` 100 /= 0)
+
+-- | `True` if not a leap year.
+notLeap :: Int -> Bool
+notLeap x = (not (leap100 x)) && (not (leap4 x))
+
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | triangle construction.
 -- given three positive numbers `a`, `b`, `c` in non-decreasing order, 
@@ -168,4 +222,123 @@ analyze a b c | a <= 0 || a > b || b > c
               | (a + b > c) && (a < b && b < c) = 3                 -- scalene
               | otherwise = error "unable to analyze input."
 
+--------------------------------------------------------------------------------
+-- | quickcheck testing -- triangle stuff
+--------------------------------------------------------------------------------
+-- | for random valid inputs, check if outputs are valid.
+prop_valid :: Property
+prop_valid = forAll assorted $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 (analyze a b c) `elem` [0 .. 3]
+--------------------------------------------------------------------------------
+-- | for random valid inputs, outputs remain same even when inputs are doubled.
+prop_double_equiv :: Property
+prop_double_equiv = forAll assorted $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c == analyze (2*a) (2*b) (2*c)
+--------------------------------------------------------------------------------
+-- | property to test outputs for equilateral triangle.
+prop_equi :: Property
+prop_equi = forAll same $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c == 1
+--------------------------------------------------------------------------------
+-- | property to test outputs for non-existent triangle.
+prop_bad :: Property
+prop_bad = forAll bad $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c == 0
+--------------------------------------------------------------------------------
+-- | property to test outputs for isoceles triangle.
+prop_iso :: Property
+prop_iso = forAll iso $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c == 2
+--------------------------------------------------------------------------------
+-- | property to test outputs for scalene triangle.
+prop_scal :: Property
+prop_scal = forAll scal $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c == 3
+--------------------------------------------------------------------------------
+-- | helper functions.
+
+-- | generate random 3-elem, ordered list; some genrated lists may have all 
+-- elements identical, while others not.
+assorted :: Gen [Int]
+assorted = frequency [(1, same), (4, diff)]
+
+-- | generate random list (3-elem) that have all elements same.
+same :: Gen [Int]
+same = do
+  x :: Int <- chooseInt (1, 1000)
+  return $ replicate 3 x
+
+-- | generate random list (3-elem, ordered) that do not have all elems same.
+diff :: Gen [Int]
+diff = genList (\(x:_:z:[]) -> x /= z) False
+
+-- | generate random list of 3-elems that do not form sides of a triangle.
+bad :: Gen [Int]
+bad = genList
+        (\(x:y:z:[]) -> (getPositive x + getPositive y <= getPositive z))
+        False
+
+-- | generate random list of 3-elems that form an isoceles triangle.
+iso :: Gen [Int]
+iso = genList
+        ((\(x:y:z:[]) -> (x /= z) && ((x == y) || (y == z))))
+        True
+
+-- | generate random list of 3-elems that form a scalene triangle.
+scal :: Gen [Int]
+scal = genList (\(x:y:z:[]) -> (x < y) && (y < z)) True
+
+-- | generate a random 3-elem, ordered +ve `Int` list.
+-- `f` acts as a filter to determine what alements can be included.
+-- `bool = True` ensures `x + y < z` in the generated list `[x, y, z]`.
+genList :: ([Positive Int] -> Bool) -> Bool -> Gen [Int]
+genList f bool = do
+  list :: [Positive Int] <- genList'
+  return $ map getPositive list
+  where genList' :: Gen [Positive Int]
+        genList' = listOf3 `suchThat` h
+        h :: [Positive Int] -> Bool
+        h xs = case bool of
+          True  -> (f xs) && (g xs)
+          False -> f xs
+        g :: [Positive Int] -> Bool
+        g (x:y:z:[]) = (getPositive x + getPositive y > getPositive z)
+        g _          = error "not a 3 elem list"
+        listOf3 :: Gen [Positive Int]
+        listOf3 = sort <$> vectorOf 3 (arbitrary :: Gen (Positive Int))
+
+-- | classifications for a property used in testing triangle construction.
+classifys :: (Testable prop) => [Int] -> prop -> Property
+classifys xs@(a:b:c:[]) = classify (length xs == 3) "3-elem list input" .
+                          classify (a + b <= c) "bad" .
+                          classify (a + b > c) "triangle" .
+                          classify (a==c) "equilateral"
+classifys _             = error "need exactly a 3-element list."
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | run all `QuickCheck` tests.
+runAllQC :: IO ()
+runAllQC = mapM_ runQC tests
+  where -- | run `QuickCheck` test case.
+        runQC :: (String, Property) -> IO ()
+        runQC (x, y) = do
+             putStrLn $ "\n--- " <> x <> " ---"
+             quickCheck y
+        tests :: [(String, Property)]
+        tests = [("leap year", prop_lyear),
+                 ("proper year", prop_year),
+                 ("valid", prop_valid),
+                 ("double equivalence", prop_double_equiv),
+                 ("no triangle", prop_bad),
+                 ("equilateral", prop_equi),
+                 ("isoceles", prop_iso),
+                 ("scalene", prop_scal)
+                ]
 --------------------------------------------------------------------------------
