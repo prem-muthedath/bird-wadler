@@ -46,7 +46,7 @@ maintainer:
 extra-source-files: CHANGELOG.md,
                     README.md,
                     cabal.project.freeze,
-                    chap2-data-types--Read--SomeType-Debug.lhs
+                    notes/chap2-data-types--Read--SomeType-Debug.lhs
 
 -- compiler version
 tested-with: GHC == 8.10.4
@@ -60,7 +60,9 @@ library
                       C2Read,
                       C2Lex,
                       C2Strings,
-                      C6Queens
+                      C6Queens,
+                      -- test modules
+                      C2ReadTest
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -74,7 +76,7 @@ library
                       QuickCheck ==2.14.2
 
     -- Directories containing source files.
-    hs-source-dirs:   src
+    hs-source-dirs:   src, test
 
     -- Base language which the package is written in.
     default-language: Haskell2010
