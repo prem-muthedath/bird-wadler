@@ -444,8 +444,8 @@ testTree = do
     print (readsPrecT 0 "Leaf 1 :^: Leaf 2 :^: Leaf 3" :: [(Tree Int, String)])
 
 --------------------------------------------------------------------------------
--- | QuickCheck tests.
-
+-- | QuickCheck tests for `Tree`.
+--------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Tree`.
 instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree a) where
   arbitrary = sized genTree
@@ -699,8 +699,8 @@ testSomeType = do
   print (read "[(3 4), 5]" :: [SomeType Int])
 
 --------------------------------------------------------------------------------
--- | QuickCheck tests.
-
+-- | QuickCheck tests for `SomeType`.
+--------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `SomeType`.
 instance (Read a, Show a, Arbitrary a) => Arbitrary (SomeType a) where
   arbitrary = sized genSomeType

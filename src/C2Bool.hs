@@ -149,6 +149,7 @@ years = [1600, 2000, 1700, 1800, 1900]
 
 -- | first attempt, using boolean operators.
 leap :: Int -> Bool
+leap y | y <= 0 = error "year has to be >= 1"
 leap y = (y `mod` 4 == 0) && ((y `mod` 100 /= 0) || (y `mod` 400 == 0))
 
 -- | second attempt, using guards & local defn.
@@ -263,7 +264,7 @@ prop_scal = forAll scal $
 --------------------------------------------------------------------------------
 -- | helper functions.
 
--- | generate random 3-elem, ordered list; some genrated lists may have all 
+-- | generate random 3-elem, ordered list; some generated lists may have all 
 -- elements identical, while others not.
 assorted :: Gen [Int]
 assorted = frequency [(1, same), (4, diff)]
