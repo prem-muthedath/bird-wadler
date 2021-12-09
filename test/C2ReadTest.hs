@@ -1,6 +1,15 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
+-- | quickcheck tests for ../src/C2Read.hs
+-- author: Prem Muthedath, DEC 2021.
+-- usage:
+--  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
+--  3. at GHCi prompt, enter `import C2ReadTest`.
+--  4. you can then invoke `runAllQC` to run all quickcheck tests.
+
+--------------------------------------------------------------------------------
 module C2ReadTest where
 
 --------------------------------------------------------------------------------

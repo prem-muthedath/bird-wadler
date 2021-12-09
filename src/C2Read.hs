@@ -2,7 +2,13 @@
 
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- `Read` class: example.
--- usage: load this file in GHCi & invoke any top-level `test...` function.
+-- usage:
+--  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
+--  3. next, at GHCi prompt, enter `import C2Read`.
+--  4. you can then invoke any of the top-elevel functions.
+--  5. OR instead of steps 3 & 4, at GHCi prompt, enter `import C2ReadTest`, & 
+--     then you can invoke `runAllQC` to run all quickcheck tests.
 -- author: Prem Muthedath, NOV 2021.
 
 --------------------------------------------------------------------------------
@@ -420,7 +426,8 @@ instance (Show a) => Show (SomeType a) where
 
 -- | how does `read "(3 4)"` parse?
 -- see below for a run thru execution steps.
--- NOTE: see also the GHCi DEBUG @ ./chap2-data-types--Read--SomeType-Debug.hs
+-- NOTE: see also GHCi DEBUG @ 
+-- ../notes/chap2-data-types--Read--SomeType-Debug.lhs
 -- readsPrec 0 "(3 4)"
 --    readMix "(3 4)"
 --    + readParen True g "(3 4)"

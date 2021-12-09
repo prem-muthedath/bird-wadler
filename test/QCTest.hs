@@ -1,3 +1,7 @@
+-- | common quickcheck testing code used by 1 or more modules in `test` dir.
+-- author: Prem Muthedath, DEC 2021.
+
+--------------------------------------------------------------------------------
 module QCTest where
 
 --------------------------------------------------------------------------------

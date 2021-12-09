@@ -1,5 +1,5 @@
 -- | GHCi debug  of `read "(3 4)" :: SomeType`.
--- source code @ ./chap2-data-types--Read.hs
+-- source code @ ../src/C2Read.hs
 -- author: Prem Muthedath, NOV 2021.
 
 --------------------------------------------------------------------------------
