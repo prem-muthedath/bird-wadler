@@ -82,25 +82,25 @@ prop_double_equiv = forAll assorted $
 prop_equi :: Property
 prop_equi = forAll same $
   \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c == 1
+                 analyze a b c === 1
 --------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
 prop_bad :: Property
 prop_bad = forAll bad $
   \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c == 0
+                 analyze a b c === 0
 --------------------------------------------------------------------------------
 -- | property to test outputs for isoceles triangle.
 prop_iso :: Property
 prop_iso = forAll iso $
   \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c == 2
+                 analyze a b c === 2
 --------------------------------------------------------------------------------
 -- | property to test outputs for scalene triangle.
 prop_scal :: Property
 prop_scal = forAll scal $
   \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c == 3
+                 analyze a b c === 3
 --------------------------------------------------------------------------------
 -- | helper functions.
 
