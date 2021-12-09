@@ -522,8 +522,10 @@ genList = frequency
   ]
 
 -- | is list generated valid?
+-- since `genList` generates a list of type `a`, it is used by all `Read` 
+-- instances. so if we test it for `[Int]`, we should be just fine.
 prop_validList :: Property
-prop_validList = forAll (arbitrary :: Gen [Int]) $
+prop_validList = forAll (genList :: Gen [Int]) $
   \xs -> classify (length xs == 0) "empty list" $
          classify (length xs == 1) "singleton list" $
          classify (length xs > 1)  "> 1 element list" $
