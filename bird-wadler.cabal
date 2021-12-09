@@ -63,7 +63,8 @@ library
                       C6Queens,
                       -- test modules
                       QCTest,
-                      C2ReadTest
+                      C2ReadTest,
+                      C2BoolTest
 
 
     -- Modules included in this library but not exported.
