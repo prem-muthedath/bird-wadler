@@ -4,12 +4,11 @@
 module C2ReadTest where
 
 --------------------------------------------------------------------------------
---------------------------------------------------------------------------------
 import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
 
 import C2Read
-
+import QCTest
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | tests for `Tree`
@@ -300,13 +299,8 @@ someTypeTC = let f :: Int -> ReadS (SomeType Int) = readsPrec
 --------------------------------------------------------------------------------
 -- | run `QuickCheck` tests on all `Read` instances.
 runAllQC :: IO ()
-runAllQC = mapM_ runQC tests
-  where -- | run `QuickCheck` test case.
-        runQC :: (String, Property) -> IO ()
-        runQC (x, y) = do
-             putStrLn $ "\n--- " <> x <> " ---"
-             quickCheck y
-        tests :: [(String, Property)]
+runAllQC = qc tests
+  where tests :: [(String, Property)]
         tests = [("valid list", prop_validList)] ++ treeTC ++ someTypeTC
 
 --------------------------------------------------------------------------------

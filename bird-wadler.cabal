@@ -62,7 +62,9 @@ library
                       C2Strings,
                       C6Queens,
                       -- test modules
+                      QCTest,
                       C2ReadTest
+
 
     -- Modules included in this library but not exported.
     -- other-modules:
