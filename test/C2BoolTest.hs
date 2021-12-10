@@ -21,17 +21,23 @@ import QCTest
 --------------------------------------------------------------------------------
 -- | quickcheck testing -- leap year stuff.
 --------------------------------------------------------------------------------
+-- | property to test equivalence of of `leap` & `leap'` functions.
+prop_leap_equiv :: Property
+prop_leap_equiv = forAll (chooseInt (1, 3000)) $
+  \x -> lClassifys x $
+        leap x === leap' x
+
 -- | property to test a leap year.
 prop_lyear :: Property
 prop_lyear = forAll genLeap $
                 \x -> lClassifys x $
-                      (leap' x == True) && (leap x == True)
+                      leap' x === True
 
 -- | property to test a non-leap year.
 prop_year :: Property
 prop_year = forAll (genYear notLeap) $
                 \x -> lClassifys x $
-                      (leap' x == False) && (leap x == False)
+                      leap' x === False
 
 -- | classification of property used in leap year testing.
 lClassifys :: (Testable prop) => Int -> prop -> Property
@@ -168,7 +174,8 @@ classifys _             = error "need exactly a 3-element list."
 runAllQC :: IO ()
 runAllQC = qc tests
   where tests :: [(String, Property)]
-        tests = [("leap year", prop_lyear),
+        tests = [("leap_equivalence", prop_leap_equiv),
+                 ("leap year", prop_lyear),
                  ("proper year", prop_year),
                  ("valid", prop_valid),
                  ("double equivalence", prop_double_equiv),
