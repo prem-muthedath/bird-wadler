@@ -73,40 +73,53 @@ notLeap x = (not (leap100 x)) && (not (leap4 x))
 -- | quickcheck testing -- triangle stuff
 --------------------------------------------------------------------------------
 -- | for random valid inputs, check if outputs are valid.
-prop_valid :: Property
-prop_valid = forAll assorted $
+prop_trian_valid :: Property
+prop_trian_valid = forAll assorted $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  (analyze a b c) `elem` [0 .. 3]
 --------------------------------------------------------------------------------
 -- | for random valid inputs, outputs remain same even when inputs are doubled.
-prop_double_equiv :: Property
-prop_double_equiv = forAll assorted $
+prop_trian_double_equiv :: Property
+prop_trian_double_equiv = forAll assorted $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c == analyze (2*a) (2*b) (2*c)
 --------------------------------------------------------------------------------
 -- | property to test outputs for equilateral triangle.
-prop_equi :: Property
-prop_equi = forAll same $
+prop_trian_equi :: Property
+prop_trian_equi = forAll same $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 1
 --------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
-prop_bad :: Property
-prop_bad = forAll bad $
+prop_trian_bad :: Property
+prop_trian_bad = forAll bad $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 0
+  where -- | generate random list of 3-elems that do not form sides of a triangle.
+        bad :: Gen [Int]
+        bad = genList
+                (\(x:y:z:[]) -> (getPositive x + getPositive y <= getPositive z))
+                False
 --------------------------------------------------------------------------------
 -- | property to test outputs for isoceles triangle.
-prop_iso :: Property
-prop_iso = forAll iso $
+prop_trian_iso :: Property
+prop_trian_iso = forAll iso $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 2
+  where -- | generate random list of 3-elems that form an isoceles triangle.
+        iso :: Gen [Int]
+        iso = genList
+                ((\(x:y:z:[]) -> (x /= z) && ((x == y) || (y == z))))
+                True
 --------------------------------------------------------------------------------
 -- | property to test outputs for scalene triangle.
-prop_scal :: Property
-prop_scal = forAll scal $
+prop_trian_scal :: Property
+prop_trian_scal = forAll scal $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 3
+  where -- | generate random list of 3-elems that form a scalene triangle.
+        scal :: Gen [Int]
+        scal = genList (\(x:y:z:[]) -> (x < y) && (y < z)) True
 --------------------------------------------------------------------------------
 -- | helper functions.
 
@@ -124,22 +137,6 @@ same = do
 -- | generate random list (3-elem, ordered) that do not have all elems same.
 diff :: Gen [Int]
 diff = genList (\(x:_:z:[]) -> x /= z) False
-
--- | generate random list of 3-elems that do not form sides of a triangle.
-bad :: Gen [Int]
-bad = genList
-        (\(x:y:z:[]) -> (getPositive x + getPositive y <= getPositive z))
-        False
-
--- | generate random list of 3-elems that form an isoceles triangle.
-iso :: Gen [Int]
-iso = genList
-        ((\(x:y:z:[]) -> (x /= z) && ((x == y) || (y == z))))
-        True
-
--- | generate random list of 3-elems that form a scalene triangle.
-scal :: Gen [Int]
-scal = genList (\(x:y:z:[]) -> (x < y) && (y < z)) True
 
 -- | generate a random 3-elem, ordered +ve `Int` list.
 -- `f` acts as a filter to determine what alements can be included.
@@ -177,11 +174,11 @@ runAllQC = qc tests
         tests = [("leap_equivalence", prop_leap_equiv),
                  ("leap year", prop_lyear),
                  ("proper year", prop_year),
-                 ("valid", prop_valid),
-                 ("double equivalence", prop_double_equiv),
-                 ("no triangle", prop_bad),
-                 ("equilateral", prop_equi),
-                 ("isoceles", prop_iso),
-                 ("scalene", prop_scal)
+                 ("triangle: valid output", prop_trian_valid),
+                 ("triangle: double equivalence", prop_trian_double_equiv),
+                 ("no triangle", prop_trian_bad),
+                 ("equilateral", prop_trian_equi),
+                 ("isoceles", prop_trian_iso),
+                 ("scalene", prop_trian_scal)
                 ]
 --------------------------------------------------------------------------------
