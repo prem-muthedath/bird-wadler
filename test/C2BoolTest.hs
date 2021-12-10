@@ -171,7 +171,7 @@ classifys _             = error "need exactly a 3-element list."
 runAllQC :: IO ()
 runAllQC = qc tests
   where tests :: [(String, Property)]
-        tests = [("leap_equivalence", prop_leap_equiv),
+        tests = [("leap equivalence", prop_leap_equiv),
                  ("leap year", prop_lyear),
                  ("proper year", prop_year),
                  ("triangle: valid output", prop_trian_valid),
