@@ -15,6 +15,8 @@ module C2ReadTest where
 --------------------------------------------------------------------------------
 import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
+import Data.List (isInfixOf)
+import Data.Char (isDigit)
 
 import C2Read
 import QCTest
@@ -107,6 +109,18 @@ rdepthT :: Tree a -> Int
 rdepthT (Leaf _)  = 1
 rdepthT (_ :^: r) = 1 + rdepthT r
 
+-- | quickCheck property to test `Tree` read for random non-Tree strings.
+prop_readNonTreeStr :: (Int -> ReadS (Tree Int)) -> Property
+prop_readNonTreeStr f = forAll (nonTree :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem str" $
+        classify (length x > 1) "> 1 elem string" $
+        f 0 x === []
+  where nonTree :: Gen String
+        nonTree = (arbitrary :: Gen String)
+                  `suchThat`
+                  (\x -> not ("Leaf" `isInfixOf` x))
+
 -- | quickcheck property to test `Tree` list read.
 prop_readTreeList :: Property
 prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
@@ -177,6 +191,8 @@ treeTC = let f :: Int -> ReadS (Tree Int) = readsPrec
          in [("valid tree", prop_validTree),
              ("readsPrec tree", prop_readTree f),
              ("readsPrecT tree", prop_readTree g),
+             ("readsPrec non-tree string", prop_readNonTreeStr f),
+             ("readsPrecT non-tree string", prop_readNonTreeStr g),
              ("readsPrec tree list", prop_readTreeList),
              ("readsPrec tree tuple", prop_readTreeTuple)]
 
@@ -263,6 +279,18 @@ rdepthST :: SomeType a -> Int
 rdepthST (Type _)  = 1
 rdepthST (Mix _ r) = 1 + rdepthST r
 
+-- | property to test `SomeType` read for random non-SomeType strings.
+prop_readNonSomeTypeStr :: (Int -> ReadS (SomeType Int)) -> Property
+prop_readNonSomeTypeStr f = forAll (notSomeType :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1 character string" $
+        classify (length x > 1) "string has > 1 character" $
+        f 0 x === []
+  where notSomeType :: Gen String
+        notSomeType = (arbitrary :: Gen String)
+                      `suchThat`
+                      (\x -> all (not . isDigit) x)
+
 -- | quickcheck property to test `SomeType` list read.
 prop_readSomeTypeList :: Property
 prop_readSomeTypeList = forAll (genList :: Gen [SomeType Int]) $
@@ -301,6 +329,8 @@ someTypeTC = let f :: Int -> ReadS (SomeType Int) = readsPrec
              in [("valid SomeType", prop_validSomeType),
                  ("readsPrec SomeType", prop_readSomeType f),
                  ("readsPrecST SomeType", prop_readSomeType g),
+                 ("readsPrec non-SomeType string", prop_readNonSomeTypeStr f),
+                 ("readsPrecST non-SomeType string", prop_readNonSomeTypeStr g),
                  ("readsPrec SomeType list", prop_readSomeTypeList),
                  ("readsPrec SomeType tuple", prop_readSomeTypeTuple)]
 
