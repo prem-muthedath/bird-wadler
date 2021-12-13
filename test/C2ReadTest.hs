@@ -67,6 +67,8 @@ instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree a) where
 
 -- | helper functions for implementing arbitrary.
 -- | generator for Tree type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 genTree :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree a)
 genTree 0 = liftM Leaf (arbitrary :: Gen a)
 genTree n = frequency [
@@ -237,6 +239,8 @@ instance (Read a, Show a, Arbitrary a) => Arbitrary (SomeType a) where
 
 -- | helper functions for implementing arbitrary.
 -- | generator for SomeType type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 genSomeType :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (SomeType a)
 genSomeType 0 = liftM Type (arbitrary :: Gen a)
 genSomeType n = frequency [
@@ -336,10 +340,94 @@ someTypeTC = let f :: Int -> ReadS (SomeType Int) = readsPrec
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+-- | QuickCheck tests for `TT` read.
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `TT`.
+instance Arbitrary (TT) where
+  arbitrary = sized genTT
+
+-- | helper functions for implementing arbitrary.
+-- | generator for `TT` type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+genTT :: Int -> Gen TT
+genTT 0 = return NT
+genTT n = frequency [
+        (1, return NT),
+        (4, liftM2 (:$) (arbitrary :: Gen Int) (genTT (n `div` 2)))
+      ]
+
+-- | valid `TT` property.
+prop_validTT :: Property
+prop_validTT = forAll (arbitrary :: Gen TT) $
+  \x -> classify (isValid x) "valid TT" $
+        isValid x
+  where isValid :: TT -> Bool
+        isValid (NT)  = True
+        isValid (x :$ y) =  (x < 0 || x >= 0) && (isValid y)
+
+-- | property to test `TT` read.
+prop_readTT :: Property
+prop_readTT = forAll (arbitrary :: Gen TT) $
+  \x -> classify (isNT x) "NT" $
+        classify (depthTT x == 1) "depthTT = 1" $
+        classify (depthTT x > 3) "depthTT > 3" $
+        (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+
+-- | helper functions
+isNT :: TT -> Bool
+isNT (NT) = True
+isNT _    = False
+
+depthTT :: TT -> Int
+depthTT (NT) = 1
+depthTT (_ :$ y) = 1 + depthTT y
+
+-- | property to test `TT` read of random non-TT string.
+prop_readNonTTStr :: Property
+prop_readNonTTStr = forAll (notTT :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem string" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(TT, String)]) == []
+  where notTT :: Gen String
+        notTT = (arbitrary :: Gen String)
+                `suchThat`
+                (\x -> not ("NT" `isInfixOf` x))
+
+-- | quickcheck property to test `TT` list read.
+prop_readTTList :: Property
+prop_readTTList = forAll (genList :: Gen [TT]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+
+-- | quickcheck property to test `TT` tuple read.
+prop_readTTTuple :: Property
+prop_readTTTuple = forAll (genTuple :: Gen (TT, TT)) $
+  \(x, y) -> classify (isNT x) "fst is NT" $
+             classify (isNT y) "snd is NT" $
+             classify (depthTT x > 3) "fst depth > 3" $
+             classify (depthTT y > 3) "snd depth > 3" $
+             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+
+-- | `TT` QuickCheck test cases.
+ttTC :: [(String, Property)]
+ttTC = [("valid TT", prop_validTT),
+        ("readsPrec TT", prop_readTT),
+        ("readsPrec non-TT string", prop_readNonTTStr),
+        ("readsPrec TT list", prop_readTTList),
+        ("readsPrec TT tuple", prop_readTTTuple)
+      ]
+--------------------------------------------------------------------------------
 -- | run `QuickCheck` tests on all `Read` instances.
 runAllQC :: IO ()
 runAllQC = qc tests
   where tests :: [(String, Property)]
-        tests = [("valid list", prop_validList)] ++ treeTC ++ someTypeTC
+        tests = [("valid list", prop_validList)] ++
+                treeTC ++
+                someTypeTC ++
+                ttTC
 
 --------------------------------------------------------------------------------

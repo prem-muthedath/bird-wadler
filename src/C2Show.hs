@@ -1,11 +1,16 @@
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- `Show` class: example.
--- usage: load this file in GHCi & invoke any top-level `test...` function.
--- Prem Muthedath, 22 OCT 2021.
+-- author: Prem Muthedath, 22 OCT 2021.
+-- usage:
+--  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
+--  3. at GHCi prompt, enter `import C2Show`.
+--  4. you can then invoke any top-level `test...` function.
 
 --------------------------------------------------------------------------------
 module C2Show where
 
+--------------------------------------------------------------------------------
 -- | GHC.Show
 -- https://hackage.haskell.org/package/base-4.15.0.0/docs/GHC-Show.html#v:show
 -- see also haskell 2010 report, chapter 6, @ https://tinyurl.com/85e22dus
@@ -69,6 +74,7 @@ module C2Show where
 -- showSpace = {- showChar ' '-} \ xs -> ' ' : xs
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | example 1: `showsPrec`, `showParen`, `showString` usage.
 -- source: chapter 11, `specification of derived instances', `section 5`,
 -- haskell 2010 report @ https://tinyurl.com/nxh9d2y
@@ -120,6 +126,7 @@ testTree = mapM_ putStrLn computations
                         :: (Tree Int, Tree Int))
           ]
 
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | example 2: how does `showsPrec` work when we `derive` `Show`?  And how can 
 -- we use it to make a custom `showsPrec`?  Well, below examples explains it.
@@ -210,6 +217,7 @@ testTree = mapM_ putStrLn computations
 --        4. non-infix  : use showParen (p > 10) and showsPrec 11 on the 
 --           arguments.
 
+--------------------------------------------------------------------------------
 -- | consider first a data declaration that derives `Show`.
 -- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
 data P = P
@@ -252,6 +260,7 @@ testT = mapM_ putStrLn computations
             "= " <> "T 11"
           ]
 
+--------------------------------------------------------------------------------
 -- | now consider an example where we define a customized `Show` instance:
 -- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
 data Expr =
@@ -365,6 +374,7 @@ testExp = mapM_ putStrLn computations
             "= " <> show ((Const 1 :+: Const 2, Const 3 :-: (Const 4 :*: Const 5)))
           ]
 
+--------------------------------------------------------------------------------
 -- | another shot at the `Expr` problem, following /u/ myzoski @ 
 -- https://tinyurl.com/4tdrxt72 (so).
 -- this one does not follow rules stated above from /u/ brian explicitly, but in 
@@ -396,7 +406,10 @@ prec (_ ::-:: _) = 6
 -- | `Show` instance for `L`.
 -- notice that in `showChild`, we insert parenthesis if parent's precedence is > 
 -- than child's. also, we insert parenthesis when `y`'s (i.e., RHS) precedence 
--- is = current precedence to display bracketted expressions on RHS.
+-- is = current precedence to display bracketted expressions on RHS (because 
+-- left associativity of the operators involved demands that composite 
+-- expressions of the form `x op y` on RHS be enclosed in brackets if the root 
+-- operator of `y` has the same precedence as its parent's root).
 -- note that in `y`'s case, we only do `prec y == pr` in `showChild` because the 
 -- case of `prec y < pr` is already taken care in `showsPrec pr y`.
 instance Show L where
@@ -434,6 +447,7 @@ testL = mapM_ putStrLn computations
           ]
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | example 3: an efficient way to show a `Tree`.
 -- source: /u/ Sven-Olof Nyström @ https://tinyurl.com/jmt7thd5 (uppsala univ)
 
@@ -456,6 +470,7 @@ testTree1 :: IO()
 testTree1 = print $ Branch1 (Leaf1 "foo") (Branch1 (Leaf1 "glob") (Leaf1 "hog"))
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | example 4: `Show` instance for type `TT`.
 -- source: haskell 2010 report, chapter 11, @ https://tinyurl.com/2p833dbh
 -- author: Prem Muthedath
@@ -465,13 +480,16 @@ infixr 4 :$
 data TT = Int :$ TT  |  NT deriving Eq
 
 -- | `Show` instance.
+-- NOTE: show (1 :$ 2 :$ NT) should produce "1 :$ (2 :$ NT)"
 instance Show TT where
   showsPrec p e0 = case e0 of
     x :$ y -> showChild 4 " :$ " x y
     NT     -> showString "NT"
     where showChild :: Int -> String -> Int -> TT -> ShowS
           showChild pr s x y =
+            -- the code `p == pr` inserts parenthesis for part after `:$`.
             showParen (p == pr) $
+              -- we use `11` because `x` is an `Int`.
               showsPrec 11 x . (s ++) .
               showsPrec pr y
 
@@ -495,4 +513,5 @@ testTT = mapM_ putStrLn computations
             "= " <> show ((NT, 81 :$ 14 :$ NT))
           ]
 
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

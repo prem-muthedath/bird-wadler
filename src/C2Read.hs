@@ -516,3 +516,50 @@ readsPrecST d0 r0 = let a1 = readMix_ r0
             return (Type v, r')
 
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | example 3: `Read` instance of `TT` type that has a custom `Show` instance.
+-- source: haskell 2010 report, chapter 11, @ https://tinyurl.com/2p833dbh
+-- author: Prem Muthedath
+
+-- | `TT` type.
+infixr 4 :$
+data TT = Int :$ TT  |  NT deriving Eq
+
+-- | `Show` instance.
+-- NOTE: show (1 :$ 2 :$ NT) should produce "1 :$ (2 :$ NT)". this is needed for 
+-- correct parsing by `read`, as `show` and `read` are closely related.
+instance Show TT where
+  showsPrec p e0 = case e0 of
+    x :$ y -> showChild 4 " :$ " x y
+    NT     -> showString "NT"
+    where showChild :: Int -> String -> Int -> TT -> ShowS
+          showChild pr s x y =
+            -- the code `p == pr` inserts parenthesis for part after `:$`.
+            showParen (p == pr) $
+              -- we use `11` because `x` is an `Int`.
+              showsPrec 11 x . (s ++) .
+              showsPrec pr y
+
+-- | `Read` instance.
+-- NOTE: show (1 :$ 2 :$ NT) produces "1 :$ (2 :$ NT)". so we design `readsPrec` 
+-- accordingly tp parse such expressions.
+instance Read (TT) where
+  readsPrec d r = readTT r ++ readNT r
+    where readTT :: String -> [(TT, String)]
+          readTT = readParen (d > op_prec) $ \r' -> do
+              -- the parse below is for `Int`, so we use `11` as precedence.
+              (u, s) :: (Int, String)       <- readsPrec 11 r'
+              (":$", t) :: (String, String) <- lex s
+              -- the parse below is for part after `:$` in `TT`, which if it has 
+              -- an `:$` should be in parenthesis, so we up the precedence.
+              (v, w) :: (TT, String)        <- readsPrec (op_prec + 1) t
+              return (u :$ v, w)
+          readNT :: String -> [(TT, String)]
+          readNT = \r' -> do
+              ("NT", t) :: (String, String) <- lex r'
+              return (NT, t)
+          op_prec :: Int
+          op_prec = 4
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
