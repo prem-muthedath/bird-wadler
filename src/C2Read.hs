@@ -671,7 +671,7 @@ instance Read T where
               (P, w) :: (P, String)         <- readsPrec (op_prec + 1) t
               return (P :# P, w)
           readT :: String -> [(T, String)]
-          readT = readParen (d > 10) $ \r' -> do
+          readT = readParen (d > app_prec) $ \r' -> do
               ("T", s) :: (String, String)  <- lex r'
               -- since `showsPrec` uses `11`, we use `11` as well here.
               (P, t) :: (P, String)         <- readsPrec (app_prec + 1) s
