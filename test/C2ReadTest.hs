@@ -420,6 +420,127 @@ ttTC = [("valid TT", prop_validTT),
         ("readsPrec TT list", prop_readTTList),
         ("readsPrec TT tuple", prop_readTTTuple)
       ]
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | QuickCheck tests for `P` & `T` read.
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `P`.
+instance Arbitrary (P) where
+  arbitrary = return P
+
+-- | `Arbitrary` instance for `T`.
+instance Arbitrary (T) where
+  arbitrary = genT
+
+-- | helper functions for implementing arbitrary.
+-- | generator for `T` type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+genT :: Gen T
+genT = frequency [
+        (1, liftM T (arbitrary :: Gen P)),
+        (4, liftM2 (:#) (arbitrary :: Gen P) (arbitrary :: Gen P))
+      ]
+
+-- | valid `T` property.
+-- this also tests in an indirect way if generator of `P` is valid.
+prop_validT :: Property
+prop_validT = forAll (arbitrary :: Gen T) $
+  \x -> classify (isValid x) "valid T" $
+        isValid x
+  where isValid :: T -> Bool
+        isValid (T P)  = True
+        isValid (x :# y) =  (x == P) && (y == P)
+
+-- | property to test `P` read.
+prop_readP :: Property
+prop_readP = forAll (arbitrary :: Gen P) $
+  \x -> (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+
+-- | property to test `T` read.
+prop_readT :: Property
+prop_readT = forAll (arbitrary :: Gen T) $
+  \x -> classify (isTP x) "T P" $
+        (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+
+-- | helper functions
+isTP :: T -> Bool
+isTP (T P) = True
+isTP _     = False
+
+-- | property to test `P` read of random non-P string.
+prop_readNonPStr :: Property
+prop_readNonPStr = forAll (notP :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem string" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(P, String)]) == []
+  where notP :: Gen String
+        notP = frequency [
+            (1, liftM (\x  -> show x) (chooseInt (12, 1000))),
+            (4, (arbitrary :: Gen String)
+                `suchThat`
+                (\x -> all (not . isDigit) x))
+          ]
+
+-- | property to test `T` read of random non-T string.
+prop_readNonTStr :: Property
+prop_readNonTStr = forAll (notT :: Gen String) $
+  \x -> classify ("T " `isInfixOf` x) "T P" $
+        classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem string" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(T, String)]) == []
+  where notT :: Gen String
+        notT = frequency [
+            (1, liftM (\x  -> "T " <> show x) (chooseInt (12, 1000))),
+            (4, (arbitrary :: Gen String)
+                `suchThat`
+                (\x -> all (not . isDigit) x))
+          ]
+
+-- | quickcheck property to test `P` list read.
+prop_readPList :: Property
+prop_readPList = forAll (genList :: Gen [P]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+
+-- | quickcheck property to test `T` list read.
+prop_readTList :: Property
+prop_readTList = forAll (genList :: Gen [T]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+
+-- | quickcheck property to test `P` tuple read.
+prop_readPTuple :: Property
+prop_readPTuple = forAll (genTuple :: Gen (P, P)) $
+  \(x, y) -> ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+
+-- | quickcheck property to test `T` tuple read.
+prop_readTTuple :: Property
+prop_readTTuple = forAll (genTuple :: Gen (T, T)) $
+  \(x, y) -> classify (isTP x) "fst is T P" $
+             classify (isTP y) "snd is T P" $
+             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+
+-- | `T` & `P` QuickCheck test cases.
+tpTC :: [(String, Property)]
+tpTC = [("valid T", prop_validT),
+        ("readsPrec P", prop_readP),
+        ("readsPrec T", prop_readT),
+        ("readsPrec non-P string", prop_readNonPStr),
+        ("readsPrec non-T string", prop_readNonTStr),
+        ("readsPrec P list", prop_readPList),
+        ("readsPrec T list", prop_readTList),
+        ("readsPrec P tuple", prop_readPTuple),
+        ("readsPrec T tuple", prop_readTTuple)
+      ]
+--------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | run `QuickCheck` tests on all `Read` instances.
 runAllQC :: IO ()
@@ -428,6 +549,7 @@ runAllQC = qc tests
         tests = [("valid list", prop_validList)] ++
                 treeTC ++
                 someTypeTC ++
-                ttTC
+                ttTC ++
+                tpTC
 
 --------------------------------------------------------------------------------

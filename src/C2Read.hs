@@ -125,6 +125,7 @@ module C2Read where
 -- lex :: ReadS String
 
 --------------------------------------------------------------------------------
+import Control.Monad (guard)
 --------------------------------------------------------------------------------
 -- | example 1: `Read` instance for `Tree` that has a custom `Show` instance.
 -- source: chapter 11, `specification of derived instances', `section 5`, 
@@ -472,6 +473,10 @@ instance (Show a) => Show (SomeType a) where
 instance (Read a) => Read (SomeType a) where
   readsPrec d0 r0 = readMix r0 ++ readType r0
       where readMix :: String -> [(SomeType a, String)]
+            -- NOTE: `showsPrec` does NOT use any precedence, yet it inserts 
+            -- parenthesis for the `Mix` constructor, regardless of precedence.  
+            -- so over here, we simply pass `True` to `readParen`, regardless of 
+            -- precedence, because we know there will be parenthesis.
             readMix = readParen' True $ \r -> do
               (v1, r'') :: (SomeType a, String) <- readsPrec d0 r
               (v2, r')  :: (SomeType a, String) <- readsPrec d0 r''
@@ -506,6 +511,10 @@ readsPrecST d0 r0 = let a1 = readMix_ r0
                         ((_:_), _)   -> a1
                         ([], (_:_))  -> a2
     where readMix_ :: String -> [(SomeType a, String)]
+          -- NOTE: `showsPrec` does NOT use any precedence, yet it inserts 
+          -- parenthesis for the `Mix` constructor, regardless of precedence.  
+          -- so over here, we simply pass `True` to `readParen`, regardless of 
+          -- precedence, because we know there will be parenthesis.
           readMix_ = readParen' True $ \r -> do
             (v1, r'') :: (SomeType a, String) <- readsPrecST d0 r
             (v2, r')  :: (SomeType a, String) <- readsPrecST d0 r''
@@ -535,10 +544,13 @@ instance Show TT where
     where showChild :: Int -> String -> Int -> TT -> ShowS
           showChild pr s x y =
             -- the code `p == pr` inserts parenthesis for part after `:$`.
-            showParen (p == pr) $
+            showParen (p > pr) $
               -- we use `11` because `x` is an `Int`.
               showsPrec 11 x . (s ++) .
-              showsPrec pr y
+              -- we up precedence to put parenthesis for the part after `:$`. of 
+              -- course, if `y` is just `NT`, then no parenthesis is inserted; 
+              -- see the code above.
+              showsPrec (pr + 1) y
 
 -- | `Read` instance.
 -- NOTE: show (1 :$ 2 :$ NT) produces "1 :$ (2 :$ NT)". so we design `readsPrec` 
@@ -551,15 +563,118 @@ instance Read (TT) where
               (u, s) :: (Int, String)       <- readsPrec 11 r'
               (":$", t) :: (String, String) <- lex s
               -- the parse below is for part after `:$` in `TT`, which if it has 
-              -- an `:$` should be in parenthesis, so we up the precedence.
+              -- an `:$`, it should be in parenthesis, so we up the precedence.  
+              -- this agrees with `pr + 1` code in `showsPrec` (see above).
               (v, w) :: (TT, String)        <- readsPrec (op_prec + 1) t
               return (u :$ v, w)
           readNT :: String -> [(TT, String)]
+          -- we do NOT call `readParen` for `NT` for any precedence because 
+          -- `showsPrec` does NOT put parenthesis for `NT` for any precedence.
           readNT = \r' -> do
               ("NT", t) :: (String, String) <- lex r'
               return (NT, t)
           op_prec :: Int
           op_prec = 4
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | example 4: consider a data declaration that derives `Show`.
+-- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
+-- we want to write custom `Read` instances for both `P` & `T`.
+
+-- | Types `P` & `T`.
+data P = P deriving Eq
+data T = P :# P | T P deriving (Eq, Show)
+infix 6 :#
+
+-- | `Show` instance for `P`.
+instance Show P where
+  -- limit precedence to valid values: i.e., between 0 and 11.
+  showsPrec p P | p `elem` [0 .. 11] = shows p
+                | otherwise          = error "precdence > 11."
+
+-- | Haskell's derived `Show` instance for `T` behaves like the code below:
+-- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
+-- instance Show T where
+--   showsPrec p e0 = case e0 of
+--      T P    -> showParen (p > 10) $ showString "T " . showsPrec 11 P
+--      P :# P -> showParen (p > 6) $ showsPrec 7 P . showString " :# " . showsPrec 7 P
+
+-- | sample computations:
+--    showsPrec 6 (P :# P) ""
+--    = "7 :# 7"              -- calls `showsPrec 7` on arguments.
+--    showsPrec 7 (P :# P) ""
+--    = "(7 :# 7)"            -- shows parenthesis b'cause 7 > 6.
+--    showsPrec 10 (T P) ""
+--    = "T 11"
+--    showsPrec 11 (T P) ""
+--    = "(T 11)"              -- shows parenthesis b'cause 11 > 10.
+--    show (P :# P)
+--    = "7 :# 7"
+--    show (T P)
+--    = "T 11"
+
+-- | `Read` instance for `P`.
+-- NOTE: an equivalent code using `lex` & list comprehension:
+--    readsPrec _ r = [(P, "") | (x, _) <- lex r, (all isDigit x) && valid x]
+--      where valid :: String -> Bool
+--            valid x = (read x :: Int) `elem` [0 .. 11]
+instance Read P where
+  readsPrec _ r = do
+    -- we use `11` because we are reading an `Int`.
+    (x, y) :: (Int, String) <- readsPrec 11 r
+    guard $ x `elem` [0 .. 11]
+    return (P, y)
+
+-- | `Read` instance for `T`
+instance Read T where
+  readsPrec d r = readPP r ++ readT r
+    where readPP :: String -> [(T, String)]
+          -- NOTE: in general, `readParen` condition is needed to parse any 
+          -- STARTING parenthesis inserted by `showsPrec`, because if any 
+          -- STARTING parenthesis is there, we have to call `mandatory` in 
+          -- `readParen` to parse the STARTING bracket.
+          --
+          -- now, usually you start off `readPrec` call with 0 precedence, so in 
+          -- the first call, `mandatory` is never called; instead `optional` is 
+          -- called, but within `optional`, there is an embedded call to 
+          -- `mandatory`, which steps in to parse the STARTING bracket. so in 
+          -- one way or the other, the code handles this condition.
+          --
+          -- but note that the reverse is NOT true: that is, if you call 
+          -- `mandatory` (without going through `optional`) at the START when 
+          -- the string has NO STARTING parenthesis, then the parse will fail. 
+          -- to make sure that such a condition never happens, we need to ensure 
+          -- that `readsPrec` has the SAME precedence as `showsPrec`:
+          --
+          -- (readsPrec 10 (showsPrec 5 (P :# P) "") :: [(T, String)])
+          -- == [(P :# P, "")] => False
+          --
+          -- but if they have the SAME precedence, the parse will always 
+          -- succeed:
+          --
+          --  (readsPrec 10 (showsPrec 10 (P :# P) "") :: [(T, String)])
+          --  == [(P :# P, "")] => True
+          --
+          -- once we got the STARTING parenthesis, `mandatory` calls within 
+          -- `optional` will handle any number of subsequent parenthesis.
+          --
+          --  (readsPrec 10 (showsPrec 10 ((((P :# P)))) "") :: [(T, String)]) 
+          --  == [(P :# P, "")] => True
+          readPP = readParen (d > op_prec) $ \r' -> do
+              -- since `showsPrec` uses `7`, we read using `7` as well.
+              (P, s) :: (P, String)         <- readsPrec (op_prec + 1) r'
+              (":#", t) :: (String, String) <- lex s
+              (P, w) :: (P, String)         <- readsPrec (op_prec + 1) t
+              return (P :# P, w)
+          readT :: String -> [(T, String)]
+          readT = readParen (d > 10) $ \r' -> do
+              ("T", s) :: (String, String)  <- lex r'
+              -- since `showsPrec` uses `11`, we use `11` as well here.
+              (P, t) :: (P, String)         <- readsPrec (app_prec + 1) s
+              return (T P, t)
+          op_prec   = 6 :: Int
+          app_prec  = 10 :: Int
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
