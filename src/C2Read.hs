@@ -261,12 +261,15 @@ instance (Read a) => Read (Tree a) where
   --  `readsPrec` gives  a 2-element list (see above), but only the 1st element 
   --  satisfies the condition `lex t = ("", "")`, so we get
   --   = Leaf 1 :^: Leaf 2 :^: Leaf 3
+  ------------------------------------------------------------------------------
+  --`(d0 > up_prec)` condition corresponds to the one in `showsPrec`.
   readsPrec d0 r0 = readParen' (d0 > up_prec)
                       (\r -> [(u:^:v, w) |
                              (u, s)     :: (Tree a, String) <- readsPrec (up_prec+1) r,
                              (":^:", t) :: (String, String) <- lex s,
                              (v, w)     :: (Tree a, String) <- readsPrec (up_prec+1) t])
                       r0
+  -- `(d0 > app_prec)` condition corresponds to the one in `showsPrec`.
                     ++ readParen' (d0 > app_prec)
                         (\r -> [(Leaf m, t) |
                              ("Leaf", s)  :: (String, String) <- lex r,
@@ -377,6 +380,7 @@ readsPrecT d0 r0 = let a1 = readsTree
                       ((_:_), _)   -> a1
                       ([], (_:_))  -> a2
  where readsTree :: [(Tree a, String)]
+       -- `(d0 > up_prec)` condition corresponds to the one in `showsPrec`.
        readsTree = readParen' (d0 > up_prec)
          (\r -> [(u:^:v, w) |
                  (u, s)     :: (Tree a, String) <- readsPrecT (up_prec+1) r,
@@ -384,6 +388,7 @@ readsPrecT d0 r0 = let a1 = readsTree
                  (v, w)     :: (Tree a, String) <- readsPrecT (up_prec+1) t])
          r0
        readsLeaf :: [(Tree a, String)]
+       -- `(d0 > app_prec)` condition corresponds to the one in `showsPrec`.
        readsLeaf = readParen' (d0 > app_prec)
          (\r -> [(Leaf m, t) |
                  ("Leaf", s)  :: (String, String) <- lex r,
@@ -482,6 +487,8 @@ instance (Read a) => Read (SomeType a) where
               (v2, r')  :: (SomeType a, String) <- readsPrec d0 r''
               return (Mix v1 v2, r')
             readType   :: String -> [(SomeType a, String)]
+            -- no call to `readParen` here as `showsPrec` does NOT insert 
+            -- parenthesis for this part, regardless of the precedence level.
             readType r = do
               (v, r') :: (a, String) <- readsPrec d0 r  -- readsPrec for type `a`
               return (Type v, r')
@@ -520,6 +527,8 @@ readsPrecST d0 r0 = let a1 = readMix_ r0
             (v2, r')  :: (SomeType a, String) <- readsPrecST d0 r''
             return (Mix v1 v2, r')
           readType_   :: String -> [(SomeType a, String)]
+          -- no call to `readParen` here as `showsPrec` does NOT insert 
+          -- parenthesis for this part, regardless of the precedence level.
           readType_ r = do
             (v, r') :: (a, String) <- readsPrec d0 r  -- readsPrec for type `a`
             return (Type v, r')
@@ -558,6 +567,7 @@ instance Show TT where
 instance Read (TT) where
   readsPrec d r = readTT r ++ readNT r
     where readTT :: String -> [(TT, String)]
+          -- `(d > op_prec)` condition corresponds to the one in `showsPrec`.
           readTT = readParen (d > op_prec) $ \r' -> do
               -- the parse below is for `Int`, so we use `11` as precedence.
               (u, s) :: (Int, String)       <- readsPrec 11 r'
@@ -664,6 +674,8 @@ instance Read T where
           --
           --  (readsPrec 10 (showsPrec 10 ((((P :# P)))) "") :: [(T, String)]) 
           --  == [(P :# P, "")] => True
+          ----------------------------------------------------------------------
+          --  `(d > op_prec)` condition corresponds to the one in `showsPrec`.
           readPP = readParen (d > op_prec) $ \r' -> do
               -- since `showsPrec` uses `7`, we read using `7` as well.
               (P, s) :: (P, String)         <- readsPrec (op_prec + 1) r'
@@ -671,6 +683,7 @@ instance Read T where
               (P, w) :: (P, String)         <- readsPrec (op_prec + 1) t
               return (P :# P, w)
           readT :: String -> [(T, String)]
+          --  `(d > app_prec)` condition corresponds to the one in `showsPrec`.
           readT = readParen (d > app_prec) $ \r' -> do
               ("T", s) :: (String, String)  <- lex r'
               -- since `showsPrec` uses `11`, we use `11` as well here.
