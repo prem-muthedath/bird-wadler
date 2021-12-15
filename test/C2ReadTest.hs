@@ -549,10 +549,10 @@ tpTC = [("valid T", prop_validT),
 runAllQC :: IO ()
 runAllQC = qc tests
   where tests :: [(String, Property)]
-        tests = [("valid list", prop_validList)] ++
-                treeTC ++
-                someTypeTC ++
-                ttTC ++
-                tpTC
+        tests = [("valid list", prop_validList)]
+                ++ treeTC
+                ++ someTypeTC
+                ++ ttTC
+                ++ tpTC
 
 --------------------------------------------------------------------------------
