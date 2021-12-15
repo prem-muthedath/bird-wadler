@@ -130,7 +130,7 @@ prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
          -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below 
-         -- line of code, as `readPrecT` returns `ReadS (Tree a)`, not `ReadS 
+         -- line of code, as `readsPrecT` returns `ReadS (Tree a)`, not `ReadS 
          -- [Tree a]`.  on the other hand, `readsPrec` returns `ReadS a`, so it 
          -- can handle `ReadS [Tree a]` as well. if you want to use `readsPrecT` 
          -- for reading lists, you have to set `readsPrec = readsPrecT` in the 
@@ -140,6 +140,9 @@ prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
 
 -- | generate a random list of type `a`.
 -- for `<$>` and `<*>`, see https://tinyurl.com/42h7z9vn (so)
+-- from Control.Monad, we have the following type signatures:
+--    (<$>) :: Functor f => (a -> b) -> f a -> f b
+--    (<*>) :: Applicative f => f (a -> b) -> f a -> f b
 -- ((:) <$> (arbitrary :: Gen a))
 -- :: Gen ([a] -> [a])
 -- (((:) <$> (arbitrary :: Gen a)) <*> myList)
@@ -171,8 +174,8 @@ prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
              classify (depthT x > 3) "fst depth > 3" $
              classify (depthT y > 3) "snd depth > 3" $
              -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
-             -- below line of code, as `readPrecT` returns `ReadS (Tree a)`, not 
-             -- `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
+             -- below line of code, as `readsPrecT` returns `ReadS (Tree a)`, 
+             -- not `ReadS (Tree a, Tree a)`.  on the other hand, `readsPrec` 
              -- returns `ReadS a`, so it can handle `ReadS (Tree a, Tree a)` as 
              -- well.  if you want to use `readsPrecT` for reading tuples, you 
              -- have to set `readsPrec = readsPrecT` in `Read` instance for 
@@ -302,7 +305,7 @@ prop_readSomeTypeList = forAll (genList :: Gen [SomeType Int]) $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
          -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in below 
-         -- line of code, as `readPrecT` returns `ReadS (SomeType a)`, not 
+         -- line of code, as `readsPrecT` returns `ReadS (SomeType a)`, not 
          -- `ReadS [SomeType a]`.  on the other hand, `readsPrec` returns `ReadS 
          -- a`, so it can handle `ReadS [SomeType a]` as well. if you want to 
          -- use `readsPrecT` for reading lists, you have to set `readsPrec = 
@@ -318,8 +321,8 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
              classify (depthST x > 3) "fst depth > 3" $
              classify (depthST y > 3) "snd depth > 3" $
              -- | NOTE: you can NOT substitute `readsPrecT` for `readsPrec` in 
-             -- below line of code, as `readPrecT` returns `ReadS (SomeType a)`, 
-             -- not `ReadS (SomeType a, SomeType a)`.  on the other hand, 
+             -- below line of code, as `readsPrecT` returns `ReadS (SomeType 
+             -- a)`, not `ReadS (SomeType a, SomeType a)`.  on the other hand, 
              -- `readsPrec` returns `ReadS a`, so it can handle `ReadS (SomeType 
              -- a, SomeType a)` as well.  if you want to use `readsPrecT` for 
              -- reading tuples, you have to set `readsPrec = readsPrecT` in 

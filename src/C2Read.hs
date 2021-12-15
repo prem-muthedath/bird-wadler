@@ -659,6 +659,9 @@ instance Read T where
           -- once we got the STARTING parenthesis, `mandatory` calls within 
           -- `optional` will handle any number of subsequent parenthesis.
           --
+          -- (readsPrec 0 "(((7 :# 7)))" :: [(T, String)])
+          -- == [(P :# P, "")] => True
+          --
           --  (readsPrec 10 (showsPrec 10 ((((P :# P)))) "") :: [(T, String)]) 
           --  == [(P :# P, "")] => True
           readPP = readParen (d > op_prec) $ \r' -> do
