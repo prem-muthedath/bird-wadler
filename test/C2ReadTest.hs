@@ -18,6 +18,7 @@ import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
 import Data.List (isInfixOf)
 import Data.Char (isDigit)
+import System.Exit (exitSuccess, exitFailure)
 
 import C2Read
 --------------------------------------------------------------------------------
@@ -71,10 +72,10 @@ instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree a) where
 -- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
 genTree :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree a)
 genTree 0 = liftM Leaf (arbitrary :: Gen a)
-genTree n = frequency [
-      (1, liftM Leaf (arbitrary :: Gen a)),
-      (4, liftM2 (:^:) (genTree (n `div` 2)) (genTree (n `div` 2)))
-    ]
+genTree n = frequency
+      [ (1, liftM Leaf (arbitrary :: Gen a))
+      , (4, liftM2 (:^:) (genTree (n `div` 2)) (genTree (n `div` 2)))
+      ]
 
 -- | valid `Tree` property.
 prop_validTree :: Property
@@ -91,8 +92,15 @@ prop_validTree = forAll (arbitrary :: Gen (Tree Int)) $
 newtype ReadTree = ReadTree (String, Int -> ReadS (Tree Int))
 
 -- | `Show` instance for `ReadTree`.
--- `quickCheck` needs a `Show` instance -- i am not sure why!. in haskell, we 
--- can NOT show functions, so over here, we just show function's name.
+--  1. `quickCheck` needs a `Show` instance for `ReadTree` because of how 
+--     `Testable` instance for functions are defined (see below).
+--          source: https://www.fpcomplete.com/blog/2017/01/quickcheck/
+--          instance [safe] (Arbitrary a, Show a, Testable prop)
+--            => Testable (a -> prop)
+--  2. quickcheck can test a function of any number of arguments as long as each 
+--     one of the arguments is an instance of `Arbitrary` & `Show`. by being an 
+--     instance of `Show`, if a test fails, offending value can be displayed.
+--  3. in haskell, we can NOT show functions, so we just show function's name.
 instance Show (ReadTree) where
   show (ReadTree (name, _)) = name
 
@@ -281,8 +289,15 @@ prop_validSomeType = forAll (arbitrary :: Gen (SomeType Int)) $
 newtype ReadST = ReadST (String, Int -> ReadS (SomeType Int))
 
 -- | `Show` instance for `ReadST`.
--- `quickCheck` needs a `Show` instance -- i am not sure why!. in haskell, we 
--- can NOT show functions, so over here, we just show function's name.
+--  1. `quickCheck` needs a `Show` instance for `ReadST` because of how 
+--     `Testable` instance for functions are defined (see below).
+--          source: https://www.fpcomplete.com/blog/2017/01/quickcheck/
+--          instance [safe] (Arbitrary a, Show a, Testable prop)
+--            => Testable (a -> prop)
+--  2. quickcheck can test a function of any number of arguments as long as each 
+--     one of the arguments is an instance of `Arbitrary` & `Show`. by being an 
+--     instance of `Show`, if a test fails, offending value can be displayed.
+--  3. in haskell, we can NOT show functions, so we just show function's name.
 instance Show (ReadST) where
   show (ReadST (name, _)) = name
 
@@ -554,20 +569,28 @@ prop_readTTuple = forAll (genTuple :: Gen (T, T)) $
 --------------------------------------------------------------------------------
 -- | run `quickcheck` on all properties automatically.
 
--- | first, setup code for running quickcheck using template haskell.
--- /u/ willem van onsem @ https://tinyurl.com/2p9h3csu (so)
+-- | test setup.
+-- set up to run quickcheck using template haskell; needs template haskell extn.
 -- https://begriffs.com/posts/2017-01-14-design-use-quickcheck.html
--- https://tinyurl.com/2p9s9ets (quick check @ hackage)
+-- /u/ willem van onsem @ https://tinyurl.com/2p9h3csu (so)
+-- https://tinyurl.com/2p9s9ets (quickcheck @ hackage)
 return []
 
-check :: IO Bool
-check = $quickCheckAll
+runTests :: IO Bool
+runTests = $quickCheckAll
 
 --------------------------------------------------------------------------------
--- | next, run all tests.
+-- | test runner.
+-- run all tests and exit with the appropriate unix status code.
+-- https://begriffs.com/posts/2017-01-14-design-use-quickcheck.html
+--    sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
+--    (<$>) :: Functor f => (a -> b) -> f a -> f b
+--    and :: Foldable t => t Bool -> Bool
 runAllQC :: IO ()
 runAllQC = do
-  _ <- check
-  return ()
+  good <- and <$> sequence [C2ReadTest.runTests]
+  if good
+     then exitSuccess
+     else exitFailure
 
 --------------------------------------------------------------------------------
