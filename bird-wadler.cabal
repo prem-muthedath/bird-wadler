@@ -46,7 +46,8 @@ maintainer:
 extra-source-files: CHANGELOG.md,
                     README.md,
                     cabal.project.freeze,
-                    notes/chap2-data-types--Read--SomeType-Debug.lhs
+                    notes/chap2-Read-SomeType-debug.lhs,
+                    notes/chap2-Read-manual-tests.lhs
 
 -- compiler version
 tested-with: GHC == 8.10.4

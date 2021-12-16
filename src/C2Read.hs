@@ -432,8 +432,7 @@ instance (Show a) => Show (SomeType a) where
 
 -- | how does `read "(3 4)"` parse?
 -- see below for a run thru execution steps.
--- NOTE: see also GHCi DEBUG @ 
--- ../notes/chap2-data-types--Read--SomeType-Debug.lhs
+-- NOTE: see also GHCi DEBUG @ ../notes/chap2-Read-SomeType-debug.lhs
 -- readsPrec 0 "(3 4)"
 --    readMix "(3 4)"
 --    + readParen True g "(3 4)"
