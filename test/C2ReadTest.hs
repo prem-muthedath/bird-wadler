@@ -87,7 +87,18 @@ prop_readTree (ReadTree (name, f)) = forAll (arbitrary :: Gen (Tree Int)) $
         classify (depthT x > 3) "depth > 3" $
         classify (ldepthT x > 3) "left depth > 3" $
         classify (rdepthT x > 3) "right depth > 3" $
-        (x,"") `elem` (f 0 (showsPrec 0 x ""))
+        checkRead f x
+
+-- | checks if `readsPrec` (or its equivalent) reads what `showsPrec` outputs.
+-- the check is made for a random selection of precedence level. the check holds 
+-- true only if both `readsPrec` & `showsPrec` are given the same precdence.
+checkRead :: forall a. (Eq a, Show a, Read a, Arbitrary a)
+          => (Int -> ReadS a)   -- `readsPrec` or its equivalent
+          -> a                  -- input to `showsPrec`
+          -> Property
+checkRead f x = forAll (elements [0 .. 11]) $
+                  \d -> label ("test precedence: " ++ show d) $
+                        (x,"") `elem` (f d (showsPrec d x ""))
 
 -- | some helper functions.
 isLeaf :: Tree a -> Bool
@@ -135,7 +146,7 @@ prop_readTreeList = forAll (genList :: Gen [Tree Int]) $
          -- for reading lists, you have to set `readsPrec = readsPrecT` in the 
          -- `Read` instance for `Tree`.  i am not clear why such an equivalence 
          -- works, but it indeed does!
-         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+         checkRead readsPrec xs
 
 -- | generate a random list of type `a`.
 -- for `<$>` and `<*>`, see https://tinyurl.com/42h7z9vn (so)
@@ -179,7 +190,7 @@ prop_readTreeTuple = forAll (genTuple :: Gen (Tree Int, Tree Int)) $
              -- well.  if you want to use `readsPrecT` for reading tuples, you 
              -- have to set `readsPrec = readsPrecT` in `Read` instance for 
              -- `Tree`.  i am unclear why that equivalence works!
-             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+             checkRead readsPrec (x, y)
 
 -- | generate a random 2-tuple of type `a`.
 genTuple :: forall a. (Read a, Show a, Arbitrary a) => Gen (a, a)
@@ -253,7 +264,7 @@ prop_readSomeType (ReadST (name, f)) = forAll (arbitrary :: Gen (SomeType Int)) 
         classify (depthST x > 3) "depth > 3" $
         classify (ldepthST x > 3) "left depth > 3" $
         classify (rdepthST x > 3) "right depth > 3" $
-        (x,"") `elem` (f 0 (showsPrec 0 x ""))
+        checkRead f x
 
 -- | some helper functions.
 isType :: SomeType a -> Bool
@@ -299,7 +310,7 @@ prop_readSomeTypeList = forAll (genList :: Gen [SomeType Int]) $
          -- use `readsPrecT` for reading lists, you have to set `readsPrec = 
          -- readsPrecT` in the `Read` instance for `SomeType`.  i am not clear 
          -- why such an equivalence works, but it indeed does!
-         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+         checkRead readsPrec xs
 
 -- | quickcheck property to test `SomeType` tuple read.
 prop_readSomeTypeTuple :: Property
@@ -315,7 +326,7 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
              -- a, SomeType a)` as well.  if you want to use `readsPrecT` for 
              -- reading tuples, you have to set `readsPrec = readsPrecT` in 
              -- `Read` instance for `Tree`. unclear why that equivalence works!
-             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+             checkRead readsPrec (x, y)
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -351,7 +362,7 @@ prop_readTT = forAll (arbitrary :: Gen TT) $
   \x -> classify (isNT x) "NT" $
         classify (depthTT x == 1) "depthTT = 1" $
         classify (depthTT x > 3) "depthTT > 3" $
-        (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+        checkRead readsPrec x
 
 -- | helper functions
 isNT :: TT -> Bool
@@ -380,7 +391,7 @@ prop_readTTList = forAll (genList :: Gen [TT]) $
   \xs -> classify (xs==[]) "empty" $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
-         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+         checkRead readsPrec xs
 
 -- | quickcheck property to test `TT` tuple read.
 prop_readTTTuple :: Property
@@ -389,7 +400,7 @@ prop_readTTTuple = forAll (genTuple :: Gen (TT, TT)) $
              classify (isNT y) "snd is NT" $
              classify (depthTT x > 3) "fst depth > 3" $
              classify (depthTT y > 3) "snd depth > 3" $
-             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+             checkRead readsPrec (x, y)
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -426,13 +437,13 @@ prop_validT = forAll (arbitrary :: Gen T) $
 -- | property to test `P` read.
 prop_readP :: Property
 prop_readP = forAll (arbitrary :: Gen P) $
-  \x -> (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+  \x -> checkRead readsPrec x
 
 -- | property to test `T` read.
 prop_readT :: Property
 prop_readT = forAll (arbitrary :: Gen T) $
   \x -> classify (isTP x) "T P" $
-        (x, "") `elem` (readsPrec 0 (showsPrec 0 x ""))
+        checkRead readsPrec x
 
 -- | helper functions
 isTP :: T -> Bool
@@ -476,7 +487,7 @@ prop_readPList = forAll (genList :: Gen [P]) $
   \xs -> classify (xs==[]) "empty" $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
-         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+         checkRead readsPrec xs
 
 -- | quickcheck property to test `T` list read.
 prop_readTList :: Property
@@ -484,19 +495,19 @@ prop_readTList = forAll (genList :: Gen [T]) $
   \xs -> classify (xs==[]) "empty" $
          classify (length xs == 1) "have 1 element" $
          classify (length xs > 1) "have > 1 element" $
-         (xs,"") `elem` (readsPrec 0 (showsPrec 0 xs ""))
+         checkRead readsPrec xs
 
 -- | quickcheck property to test `P` tuple read.
 prop_readPTuple :: Property
 prop_readPTuple = forAll (genTuple :: Gen (P, P)) $
-  \(x, y) -> ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+  \(x, y) -> checkRead readsPrec (x, y)
 
 -- | quickcheck property to test `T` tuple read.
 prop_readTTuple :: Property
 prop_readTTuple = forAll (genTuple :: Gen (T, T)) $
   \(x, y) -> classify (isTP x) "fst is T P" $
              classify (isTP y) "snd is T P" $
-             ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
+             checkRead readsPrec (x, y)
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
