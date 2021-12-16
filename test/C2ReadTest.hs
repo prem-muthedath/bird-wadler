@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | quickcheck tests for ../src/C2Read.hs
 -- author: Prem Muthedath, DEC 2021.
@@ -19,7 +20,6 @@ import Data.List (isInfixOf)
 import Data.Char (isDigit)
 
 import C2Read
-import QCTest
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | tests for `Tree`
@@ -85,10 +85,33 @@ prop_validTree = forAll (arbitrary :: Gen (Tree Int)) $
         isValid (Leaf _)  = True
         isValid (l :^: r) = (isValid l) && (isValid r)
 
+-- | `ReadTree` specifies a `readsPrec` implementation for `Tree`.
+-- 1st parameter is name of the function; the 2nd, the function itself.
+-- for `Tree`, there are 2 implementations: `readsPrec` & `readsPrecT`.
+newtype ReadTree = ReadTree (String, Int -> ReadS (Tree Int))
+
+-- | `Show` instance for `ReadTree`.
+-- `quickCheck` needs a `Show` instance -- i am not sure why!. in haskell, we 
+-- can NOT show functions, so over here, we just show function's name.
+instance Show (ReadTree) where
+  show (ReadTree (name, _)) = name
+
+-- | `Arbitrary` instance for `ReadTree`.
+-- we randomly choose from `readsPrec` & `readsPrecT` defined for `Tree`.
+instance Arbitrary (ReadTree) where
+  arbitrary = let f :: Int -> ReadS (Tree Int) = readsPrec
+                  g :: Int -> ReadS (Tree Int) = readsPrecT
+              in frequency [
+                  (1, return $ ReadTree ("readsPrec", f)),
+                  (1, return $ ReadTree ("readsPrecT", g))
+                ]
+
 -- | quickcheck property to test `Tree` read.
-prop_readTree :: (Int -> ReadS (Tree Int)) -> Property
-prop_readTree f = forAll (arbitrary :: Gen (Tree Int)) $
-  \x -> classify (isLeaf x) "leaf" $
+prop_readTree :: ReadTree -> Property
+prop_readTree (ReadTree (name, f)) = forAll (arbitrary :: Gen (Tree Int)) $
+  \x -> classify (name == "readsPrec") "readsPrec tree" $
+        classify (name == "readsPrecT") "readsPrecT tree" $
+        classify (isLeaf x) "leaf" $
         classify (depthT x > 3) "depth > 3" $
         classify (ldepthT x > 3) "left depth > 3" $
         classify (rdepthT x > 3) "right depth > 3" $
@@ -112,9 +135,11 @@ rdepthT (Leaf _)  = 1
 rdepthT (_ :^: r) = 1 + rdepthT r
 
 -- | quickCheck property to test `Tree` read for random non-Tree strings.
-prop_readNonTreeStr :: (Int -> ReadS (Tree Int)) -> Property
-prop_readNonTreeStr f = forAll (nonTree :: Gen String) $
-  \x -> classify (x == "") "empty string" $
+prop_readNonTreeStr :: ReadTree -> Property
+prop_readNonTreeStr (ReadTree (name, f)) = forAll (nonTree :: Gen String) $
+  \x -> classify (name == "readsPrec") "readsPrec tree" $
+        classify (name == "readsPrecT") "readsPrecT tree" $
+        classify (x == "") "empty string" $
         classify (length x == 1) "1-elem str" $
         classify (length x > 1) "> 1 elem string" $
         f 0 x === []
@@ -122,6 +147,8 @@ prop_readNonTreeStr f = forAll (nonTree :: Gen String) $
         nonTree = (arbitrary :: Gen String)
                   `suchThat`
                   (\x -> not ("Leaf" `isInfixOf` x))
+        -- use this negative test, which should fail, to test this prop.
+        -- nonTree = elements ["Leaf 0", "Leaf 1"]
 
 -- | quickcheck property to test `Tree` list read.
 prop_readTreeList :: Property
@@ -189,18 +216,6 @@ genTuple = do
   y1 <- arbitrary :: Gen a
   return (x1, y1)
 
--- | `Tree` QuickCheck test cases.
-treeTC :: [(String, Property)]
-treeTC = let f :: Int -> ReadS (Tree Int) = readsPrec
-             g :: Int -> ReadS (Tree Int) = readsPrecT
-         in [("valid tree", prop_validTree),
-             ("readsPrec tree", prop_readTree f),
-             ("readsPrecT tree", prop_readTree g),
-             ("readsPrec non-tree string", prop_readNonTreeStr f),
-             ("readsPrecT non-tree string", prop_readNonTreeStr g),
-             ("readsPrec tree list", prop_readTreeList),
-             ("readsPrec tree tuple", prop_readTreeTuple)]
-
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | tests for `SomeType`.
@@ -260,10 +275,33 @@ prop_validSomeType = forAll (arbitrary :: Gen (SomeType Int)) $
         isValid (Type _)  = True
         isValid (Mix l r) = (isValid l) && (isValid r)
 
+-- | `ReadST` specifies a `readsPrec` implementation for `SomeType`.
+-- 1st parameter is name of the function; the 2nd, the function itself.
+-- for `SomeType`, there are 2 implementations: `readsPrec` & `readsPrecST`.
+newtype ReadST = ReadST (String, Int -> ReadS (SomeType Int))
+
+-- | `Show` instance for `ReadST`.
+-- `quickCheck` needs a `Show` instance -- i am not sure why!. in haskell, we 
+-- can NOT show functions, so over here, we just show function's name.
+instance Show (ReadST) where
+  show (ReadST (name, _)) = name
+
+-- | `Arbitrary` instance for `ReadST`.
+-- we randomly choose from `readsPrec` & `readsPrecST` defined for `SomeType`.
+instance Arbitrary (ReadST) where
+  arbitrary = let f :: Int -> ReadS (SomeType Int) = readsPrec
+                  g :: Int -> ReadS (SomeType Int) = readsPrecST
+              in frequency [
+                  (1, return $ ReadST ("readsPrec", f)),
+                  (1, return $ ReadST ("readsPrecST", g))
+                ]
+
 -- | quickcheck property to test `SomeType` read.
-prop_readSomeType :: (Int -> ReadS (SomeType Int)) -> Property
-prop_readSomeType f = forAll (arbitrary :: Gen (SomeType Int)) $
-  \x -> classify (isType x) "Type" $
+prop_readSomeType :: ReadST -> Property
+prop_readSomeType (ReadST (name, f)) = forAll (arbitrary :: Gen (SomeType Int)) $
+  \x -> classify (name == "readsPrec") "readsPrec SomeType" $
+        classify (name == "readsPrecST") "readsPrecST SomeType" $
+        classify (isType x) "Type" $
         classify (depthST x > 3) "depth > 3" $
         classify (ldepthST x > 3) "left depth > 3" $
         classify (rdepthST x > 3) "right depth > 3" $
@@ -287,9 +325,11 @@ rdepthST (Type _)  = 1
 rdepthST (Mix _ r) = 1 + rdepthST r
 
 -- | property to test `SomeType` read for random non-SomeType strings.
-prop_readNonSomeTypeStr :: (Int -> ReadS (SomeType Int)) -> Property
-prop_readNonSomeTypeStr f = forAll (notSomeType :: Gen String) $
-  \x -> classify (x == "") "empty string" $
+prop_readNonSomeTypeStr :: ReadST -> Property
+prop_readNonSomeTypeStr (ReadST (name, f)) = forAll (notSomeType :: Gen String) $
+  \x -> classify (name == "readsPrec") "readsPrec SomeType" $
+        classify (name == "readsPrecST") "readsPrecST SomeType" $
+        classify (x == "") "empty string" $
         classify (length x == 1) "1 character string" $
         classify (length x > 1) "string has > 1 character" $
         f 0 x === []
@@ -328,18 +368,6 @@ prop_readSomeTypeTuple = forAll (genTuple :: Gen (SomeType Int, SomeType Int)) $
              -- reading tuples, you have to set `readsPrec = readsPrecT` in 
              -- `Read` instance for `Tree`. unclear why that equivalence works!
              ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
-
--- | `SomeType` QuickCheck test cases.
-someTypeTC :: [(String, Property)]
-someTypeTC = let f :: Int -> ReadS (SomeType Int) = readsPrec
-                 g :: Int -> ReadS (SomeType Int) = readsPrecST
-             in [("valid SomeType", prop_validSomeType),
-                 ("readsPrec SomeType", prop_readSomeType f),
-                 ("readsPrecST SomeType", prop_readSomeType g),
-                 ("readsPrec non-SomeType string", prop_readNonSomeTypeStr f),
-                 ("readsPrecST non-SomeType string", prop_readNonSomeTypeStr g),
-                 ("readsPrec SomeType list", prop_readSomeTypeList),
-                 ("readsPrec SomeType tuple", prop_readSomeTypeTuple)]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -414,15 +442,6 @@ prop_readTTTuple = forAll (genTuple :: Gen (TT, TT)) $
              classify (depthTT x > 3) "fst depth > 3" $
              classify (depthTT y > 3) "snd depth > 3" $
              ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
-
--- | `TT` QuickCheck test cases.
-ttTC :: [(String, Property)]
-ttTC = [("valid TT", prop_validTT),
-        ("readsPrec TT", prop_readTT),
-        ("readsPrec non-TT string", prop_readNonTTStr),
-        ("readsPrec TT list", prop_readTTList),
-        ("readsPrec TT tuple", prop_readTTTuple)
-      ]
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -531,28 +550,24 @@ prop_readTTuple = forAll (genTuple :: Gen (T, T)) $
              classify (isTP y) "snd is T P" $
              ((x, y),"") `elem` (readsPrec 0 (showsPrec 0 (x, y) ""))
 
--- | `T` & `P` QuickCheck test cases.
-tpTC :: [(String, Property)]
-tpTC = [("valid T", prop_validT),
-        ("readsPrec P", prop_readP),
-        ("readsPrec T", prop_readT),
-        ("readsPrec non-P string", prop_readNonPStr),
-        ("readsPrec non-T string", prop_readNonTStr),
-        ("readsPrec P list", prop_readPList),
-        ("readsPrec T list", prop_readTList),
-        ("readsPrec P tuple", prop_readPTuple),
-        ("readsPrec T tuple", prop_readTTuple)
-      ]
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- | run `QuickCheck` tests on all `Read` instances.
+-- | run `quickcheck` on all properties automatically.
+
+-- | first, setup code for running quickcheck using template haskell.
+-- /u/ willem van onsem @ https://tinyurl.com/2p9h3csu (so)
+-- https://begriffs.com/posts/2017-01-14-design-use-quickcheck.html
+-- https://tinyurl.com/2p9s9ets (quick check @ hackage)
+return []
+
+check :: IO Bool
+check = $quickCheckAll
+
+--------------------------------------------------------------------------------
+-- | next, run all tests.
 runAllQC :: IO ()
-runAllQC = qc tests
-  where tests :: [(String, Property)]
-        tests = [("valid list", prop_validList)]
-                ++ treeTC
-                ++ someTypeTC
-                ++ ttTC
-                ++ tpTC
+runAllQC = do
+  _ <- check
+  return ()
 
 --------------------------------------------------------------------------------
