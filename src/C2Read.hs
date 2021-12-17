@@ -600,7 +600,7 @@ infix 6 :#
 instance Show P where
   -- limit precedence to valid values: i.e., between 0 and 11.
   showsPrec p P | p `elem` [0 .. 11] = shows p
-                | otherwise          = error "precdence > 11."
+                | otherwise          = error "precedence > 11 or < 0."
 
 -- | Haskell's derived `Show` instance for `T` behaves like the code below:
 -- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
