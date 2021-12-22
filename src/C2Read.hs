@@ -13,7 +13,7 @@
 
 --------------------------------------------------------------------------------
 module C2Read where
-
+--------------------------------------------------------------------------------
 -- | Text.Read
 -- REF: https://hackage.haskell.org/package/base-4.16.0.0/docs/Text-Read.html
 
@@ -127,6 +127,7 @@ module C2Read where
 --------------------------------------------------------------------------------
 import Control.Monad (guard)
 --------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | example 1: `Read` instance for `Tree` that has a custom `Show` instance.
 -- source: chapter 11, `specification of derived instances', `section 5`, 
 -- haskell 2010 report @ https://tinyurl.com/nxh9d2y
@@ -134,6 +135,13 @@ import Control.Monad (guard)
 infixr 5 :^:
 data Tree a =  Leaf a  |  Tree a :^: Tree a deriving Eq
 
+--------------------------------------------------------------------------------
+-- | `Show` instance for `Tree`.
+-- examples:
+--    show (Leaf (1 :: Int) :^: Leaf 2 :^: Leaf 3 :^: Leaf 4)
+--      = "Leaf 1 :^: (Leaf 2 :^: (Leaf 3 :^: Leaf 4))"
+--    show ((Leaf 1 :^: Leaf 2) :^: Leaf (3 :: Int))
+--      = "(Leaf 1 :^: Leaf 2) :^: Leaf 3"
 instance (Show a) => Show (Tree a) where
        showsPrec d (Leaf m) = showParen (d > app_prec) $
             showString "Leaf " . showsPrec (app_prec+1) m
@@ -145,9 +153,40 @@ instance (Show a) => Show (Tree a) where
             showsPrec (up_prec+1) v
          where up_prec = 5
          -- NOTE: right associativity of :^: is ignored!
+         --
+         -- what does this mean, by the way?? it means that even when right 
+         -- associativity dictates no need for parenthesis, we still insert 
+         -- parenthesis, if needed, both on the left & the right. that is, in 
+         -- general, associativity is NOT used to reduce parenthesis; instead, 
+         -- precedence IS used to reduce parenthesis.
+         --
+         -- in the example below, strictly speaking, because of right 
+         -- associativity, no parenthesis is required, as the grouping from 
+         -- right is obvious, but we ignore right associativity and instead 
+         -- focus on precedence.
+         --
+         -- all instances of `:^:` in the argument expression for `show` have 
+         -- the same precedence, so when we apply `show`, the outcome of `show` 
+         -- should group stuff in such a way as to make the order clear to a 
+         -- subsequent consumer of `show`'s output. this consumer is 
+         -- `readsPrec`, which is required tp parse `showsPrec` output back to a 
+         -- `Tree`. this strategy makes `showsPrec` & `readsPrec` compatible.  
+         -- if you don't this, `readsPrec` parse will fail or be incomplete!
+         --
+         -- in this example, because multiple instances of `:^:` all have the 
+         -- same precedence, `show`'s output groups then from right, as it 
+         -- should because of right associativity, using right parenthesis. the 
+         -- parenthesis makes clear the grouping of operators of same 
+         -- precedence, even though the right associativity dictates that no 
+         -- parenthesises are required (isn't the group obvious, joe?):
+         --
+         --   show (Leaf 1 :^: Leaf 2 :^: Leaf 3 :^: Leaf 4)
+         --     = "Leaf 1 :^: (Leaf 2 :^: (Leaf 3 :^: Leaf 4))"
 
+--------------------------------------------------------------------------------
 -- | `Read` instance for `Tree`
 instance (Read a) => Read (Tree a) where
+  ------------------------------------------------------------------------------
   -- how does `readsPrec` work?  it seems to be infinitely recursive!
   -- see https://paste.ofcode.org/DCiTkXtTH7YHPbcY97b5Bd
   -- well, using type annotation, as in below code, we can see that `readsPrec` 
@@ -262,7 +301,24 @@ instance (Read a) => Read (Tree a) where
   --  satisfies the condition `lex t = ("", "")`, so we get
   --   = Leaf 1 :^: Leaf 2 :^: Leaf 3
   ------------------------------------------------------------------------------
+  --  another example (to illustrate grouping):
+  --      show ((Leaf 1 :^: Leaf 2) :^: Leaf (3 :: Int))
+  --        = "(Leaf 1 :^: Leaf 2) :^: Leaf 3"
+  --      (read "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: Tree Int)
+  --        == (Leaf (1 :: Int) :^: Leaf 2 :^: Leaf 3)
+  --        => False
+  --      (read "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: Tree Int)
+  --        == ((Leaf (1 :: Int) :^: Leaf 2) :^: Leaf 3)
+  --        => True
+  --      readsPrec 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: [(Tree Int, String)]
+  --        = [ ((Leaf 1 :^: Leaf 2) :^: Leaf 3,"") => `optional = g r`
+  --          , Leaf 1 :^: Leaf 2," :^: Leaf 3")    => `optional = ++ mandatory 
+  --          r` ]
+  ------------------------------------------------------------------------------
   --`(d0 > up_prec)` condition corresponds to the one in `showsPrec`.
+  -- note that we up the precedence to parse parts both to the left and to the 
+  -- right of :^:. this is in line (symmetrical!) with code in `showsPrec`, and 
+  -- its purpose is to parse the parenthesis that `showsPrec` may have put in.
   readsPrec d0 r0 = readParen' (d0 > up_prec)
                       (\r -> [(u:^:v, w) |
                              (u, s)     :: (Tree a, String) <- readsPrec (up_prec+1) r,
@@ -280,7 +336,7 @@ instance (Read a) => Read (Tree a) where
 
 --------------------------------------------------------------------------------
 -- | ALTERNATIVE FORMULATION (AS AN EXPERIMENT).
--- below definition is equivalent to or better than the `readsPrec` above.
+-- below definition is equivalent to or better (??) than the `readsPrec` above.
 
 -- the `readsPrec` definition above uses `++` operator to tie up things, but 
 -- usually, though not always, the two sides of `++` are mutually exclusive: 
@@ -314,7 +370,7 @@ instance (Read a) => Read (Tree a) where
 
 -- NOTE: `readsPrecT` can NOT parse a list of `Tree a`, as its return type is 
 -- `Tree a`, not `[Tree a]`; ditto for a `Tree` tuple. on the other hand, since 
--- the return type of `readsPrec` is `Reads a`, it can return any `a`, including 
+-- the return type of `readsPrec` is `ReadS a`, it can return any `a`, including 
 -- `Tree a`, or `[Tree a]`, or `(Tree a, Tree a)`. i also noticed that if you 
 -- set `readsPrec = readsPrecT` in `Read` instance of `Tree`, then it indeed 
 -- reads lists & tuples, not sure why though.
@@ -372,6 +428,14 @@ instance (Read a) => Read (Tree a) where
 
 --        readsPrecT 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3" :: [(Tree Int, String)]
 --          = [(Leaf 1 :^: Leaf 2," :^: Leaf 3")]
+--
+--  7. although i have claimed here that `readsPrecT` may be better than 
+--     `readsPrec`, the `case` analysis in `readsPrecT` is simple enough because 
+--     there is just 1 operator involved (i.e., :^:).  if there are multiple 
+--     operators, the `case` analysis gets very complex, even non-doable, but 
+--     the `++` technique used in `readsPrec` extends very well even to such 
+--     situations. given this finding, i prefer the `readsPrec` algorithm.
+--------------------------------------------------------------------------------
 readsPrecT :: forall a. (Read a) => Int -> ReadS (Tree a)
 readsPrecT d0 r0 = let a1 = readsTree
                        a2 = readsLeaf
@@ -396,7 +460,6 @@ readsPrecT d0 r0 = let a1 = readsTree
          r0
        app_prec = 10
        up_prec  = 5
-
 --------------------------------------------------------------------------------
 -- | `readParen'` is identical to `readParen` in haskell prelude.
 -- using this code, instead of library code, allows me to debug the code in GHCi 
@@ -422,13 +485,19 @@ readParen' b g  =  if b then mandatory else optional
 
 -- | `SomeType` type.
 data SomeType a = Type a | Mix (SomeType a) (SomeType a) deriving Eq
-
+--------------------------------------------------------------------------------
 -- | `Show` instance.
+-- examples:
+--    show $
+--      Mix (Type (2 :: Int)) (Type (7 :: Int))
+--      = "(2 7)"
 instance (Show a) => Show (SomeType a) where
   show (Type a) = show a
   show (Mix a b) = "(" ++ show a ++ " " ++ show b ++ ")"
-
+--------------------------------------------------------------------------------
 -- | `Read` instance.
+-- examples:
+--     read "(3 4)" = Mix (Type 3) (Type 4)
 
 -- | how does `read "(3 4)"` parse?
 -- see below for a run thru execution steps.
@@ -473,7 +542,7 @@ instance (Show a) => Show (SomeType a) where
 -- = [(Mix Type 3 Type 4, "")]
 --
 -- read "(3 4)" = Mix Type 3 Type 4
---
+--------------------------------------------------------------------------------
 instance (Read a) => Read (SomeType a) where
   readsPrec d0 r0 = readMix r0 ++ readType r0
       where readMix :: String -> [(SomeType a, String)]
@@ -491,9 +560,11 @@ instance (Read a) => Read (SomeType a) where
             readType r = do
               (v, r') :: (a, String) <- readsPrec d0 r  -- readsPrec for type `a`
               return (Type v, r')
-
+--------------------------------------------------------------------------------
 -- | the definition below is equivalent to `readsPrec` for `SomeType` above.
--- example: readsPrecST 0 "(3 4)" :: [(SomeType Int, String)] = [((3 4),"")]
+-- example:
+--    readsPrecST 0 "(3 4)" :: [(SomeType Int, String)]
+--      = [(Mix (Type 3 Type 4),"")]
 -- notice how the `++` in above definition translates to an `OR` pattern match 
 -- below.  this is because `readMix` & `readType` in above definition are 
 -- mutually exclusive: if one is successful, the other is not, and vice versa.
@@ -541,17 +612,24 @@ readsPrecST d0 r0 = let a1 = readMix_ r0
 -- | `TT` type.
 infixr 4 :$
 data TT = Int :$ TT  |  NT deriving Eq
-
+--------------------------------------------------------------------------------
 -- | `Show` instance.
--- NOTE: show (1 :$ 2 :$ NT) should produce "1 :$ (2 :$ NT)". this is needed for 
--- correct parsing by `read`, as `show` and `read` are closely related.
+-- examples:
+--    show (1 :$ 2 :$ NT) should produce "1 :$ (2 :$ NT)".
+--
+-- in this case, right associativity dictates no parenthesis, as the grouping is 
+-- "obvious", but we still insert parenthesis because `showsPrec` does not use 
+-- associativity to reduce parenthesis; instead, its chief focus is precdence.
+--
+-- all operators in the expression above have same precedence, and for 
+-- `readsPrec` to parse this string back to `TT`, `showsPrec` has to make the 
+-- grouping clear using parenthesis. otherwise, `readsPrec` will fail.
 instance Show TT where
   showsPrec p e0 = case e0 of
     x :$ y -> showChild 4 " :$ " x y
     NT     -> showString "NT"
     where showChild :: Int -> String -> Int -> TT -> ShowS
           showChild pr s x y =
-            -- the code `p == pr` inserts parenthesis for part after `:$`.
             showParen (p > pr) $
               -- we use `11` because `x` is an `Int`.
               showsPrec 11 x . (s ++) .
@@ -559,10 +637,12 @@ instance Show TT where
               -- course, if `y` is just `NT`, then no parenthesis is inserted; 
               -- see the code above.
               showsPrec (pr + 1) y
-
+--------------------------------------------------------------------------------
 -- | `Read` instance.
--- NOTE: show (1 :$ 2 :$ NT) produces "1 :$ (2 :$ NT)". so we design `readsPrec` 
--- accordingly tp parse such expressions.
+-- examples:
+--    show (1 :$ 2 :$ NT) = "1 :$ (2 :$ NT)"
+--    (read "1 :$ (2 :$ NT)" :: TT) = (1 :$ 2 :$ NT)
+--    (read "1 :$ (2 :$ NT)" :: TT) = (1 :$ (2 :$ NT))
 instance Read (TT) where
   readsPrec d r = readTT r ++ readNT r
     where readTT :: String -> [(TT, String)]
@@ -595,84 +675,285 @@ instance Read (TT) where
 data P = P deriving Eq
 data T = P :# P | T P deriving (Eq, Show)
 infix 6 :#
-
+--------------------------------------------------------------------------------
 -- | `Show` instance for `P`.
 instance Show P where
   -- limit precedence to valid values: i.e., between 0 and 11.
   showsPrec p P | p `elem` [0 .. 11] = shows p
                 | otherwise          = error "precedence > 11 or < 0."
 
--- | Haskell's derived `Show` instance for `T` behaves like the code below:
--- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
--- instance Show T where
---   showsPrec p e0 = case e0 of
---      T P    -> showParen (p > 10) $ showString "T " . showsPrec 11 P
---      P :# P -> showParen (p > 6) $ showsPrec 7 P . showString " :# " . showsPrec 7 P
+  -- | Haskell's derived `Show` instance for `T` behaves like the code below:
+  -- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
+  -- instance Show T where
+  --   showsPrec p e0 = case e0 of
+  --      T P    -> showParen (p > 10) $ showString "T " . showsPrec 11 P
+  --      P :# P -> showParen (p > 6) $ showsPrec 7 P . showString " :# " . showsPrec 7 P
 
--- | sample computations:
---    showsPrec 6 (P :# P) ""
---    = "7 :# 7"              -- calls `showsPrec 7` on arguments.
---    showsPrec 7 (P :# P) ""
---    = "(7 :# 7)"            -- shows parenthesis b'cause 7 > 6.
---    showsPrec 10 (T P) ""
---    = "T 11"
---    showsPrec 11 (T P) ""
---    = "(T 11)"              -- shows parenthesis b'cause 11 > 10.
---    show (P :# P)
---    = "7 :# 7"
---    show (T P)
---    = "T 11"
-
+  -- | sample computations:
+  --    showsPrec 6 (P :# P) ""
+  --    = "7 :# 7"              -- calls `showsPrec 7` on arguments.
+  --    showsPrec 7 (P :# P) ""
+  --    = "(7 :# 7)"            -- shows parenthesis b'cause 7 > 6.
+  --    showsPrec 10 (T P) ""
+  --    = "T 11"
+  --    showsPrec 11 (T P) ""
+  --    = "(T 11)"              -- shows parenthesis b'cause 11 > 10.
+  --    show (P :# P)
+  --    = "7 :# 7"
+  --    show (T P)
+  --    = "T 11"
+--------------------------------------------------------------------------------
 -- | `Read` instance for `P`.
--- NOTE: an equivalent code using `lex` & list comprehension:
---    readsPrec _ r = [(P, "") | (x, _) <- lex r, (all isDigit x) && valid x]
---      where valid :: String -> Bool
---            valid x = (read x :: Int) `elem` [0 .. 11]
+-- examples:
+--    (read "T 11" :: T) = T P
+--    (read "7 :# 7" :: T) = P :# P
+--    (read "(7 :# 7)" :: T) = P :# P
 instance Read P where
   readsPrec _ r = do
+    -- NOTE: an equivalent code using `lex` & list comprehension:
+    --    readsPrec _ r = [(P, "") | (x, _) <- lex r, (all isDigit x) && valid x]
+    --      where valid :: String -> Bool
+    --            valid x = (read x :: Int) `elem` [0 .. 11]
     -- we use `11` because we are reading an `Int`.
     (x, y) :: (Int, String) <- readsPrec 11 r
     guard $ x `elem` [0 .. 11]
     return (P, y)
-
+--------------------------------------------------------------------------------
 -- | `Read` instance for `T`
 instance Read T where
   readsPrec d r = readPP r ++ readT r
     where readPP :: String -> [(T, String)]
-          -- NOTE: in general, `readParen` condition is needed to parse any 
-          -- STARTING parenthesis inserted by `showsPrec`, because if any 
-          -- STARTING parenthesis is there, we have to call `mandatory` in 
-          -- `readParen` to parse the STARTING bracket.
+          --  NOTE: `readsPrec` parses a string to extract the data structure.  
+          --  in general, for nested data types, this involves parsing the 
+          --  string either for a nested structure or a leaf. you parse through 
+          --  the nested structures until you get to a leaf: that is the flow.  
+          --  parentheses in the string argument usually enclose nested 
+          --  structures, so correct parsing of parentheses and the nested 
+          --  structures they enclose, using precedence, is key. that, in 
+          --  essence, is what `readsPrec` is all about.
           --
-          -- now, usually you start off `readPrec` call with 0 precedence, so in 
-          -- the first call, `mandatory` is never called; instead `optional` is 
-          -- called, but within `optional`, there is an embedded call to 
-          -- `mandatory`, which steps in to parse the STARTING bracket. so in 
-          -- one way or the other, the code handles this condition.
+          --  so how do we implement `readsPrec`? we got 2 inter-related 
+          --  problems at hand: one, to parse parentheses correctly using 
+          --  precedence; two, to recursively parse the string to extract the 
+          --  nested data structure. `readParen` call in `readsPrec` code 
+          --  addresses the 1st problem; a combination of parsing functions in 
+          --  `readsPrec` code addresses the 2nd problem. and we do this in  
+          --  sequence: first parse parentheses, then enclosed structures 
+          --  -- repeatedly, recursively, until you exhaust the string.
           --
-          -- but note that the reverse is NOT true: that is, if you call 
-          -- `mandatory` (without going through `optional`) at the START when 
-          -- the string has NO STARTING parenthesis, then the parse will fail. 
-          -- to make sure that such a condition never happens, we need to ensure 
-          -- that `readsPrec` has the SAME precedence as `showsPrec`:
+          --  `readParen` uses a condition on precedence to parse any STARTING  
+          --  parenthesis inserted by `showsPrec`. if the condition is true, 
+          --  implying presence of parenthesis, `readParen` calls `mandatory`, a 
+          --  local function, to parse any starting parenthesis and the nested 
+          --  data structures they enclose. otherwise, `readParen` calls 
+          --  `optional`, another local function, to parse the string. as a 
+          --  note, the parseing algorithm walks the string, left to right, 
+          --  parsing it piece by piece, so "STARTING" parenthesis here refers 
+          --  to parenthesis at the start of any string piece fed to parse.
           --
-          -- (readsPrec 10 (showsPrec 5 (P :# P) "") :: [(T, String)])
-          -- == [(P :# P, "")] => False
+          --  in general, `readsPrec` parse for a recursive type consists of 
+          --  2 parts: one for the composite & the other for the leaf.
           --
-          -- but if they have the SAME precedence, the parse will always 
-          -- succeed:
+          --  `readsPrec` (usual defn) = composite parse ++ leaf parse.
           --
-          --  (readsPrec 10 (showsPrec 10 (P :# P) "") :: [(T, String)])
-          --  == [(P :# P, "")] => True
+          --  the `++` acts, ideally, and more often, as an `OR`, rather than an 
+          --  `AND`; that is, if one part fails, you still get a parse value 
+          --  from the other part, and vice versa. and usually it is the case 
+          --  that one part fails and the other succeeds, and that both 
+          --  simultaneously do not succeed. however, if, for some reason, both 
+          --  parts return values, then you get a concatenation. of course, if 
+          --  both parts simultaneously fail, then you get [], a parse failure.
           --
-          -- once we got the STARTING parenthesis, `mandatory` calls within 
-          -- `optional` will handle any number of subsequent parenthesis.
+          --  the key part is the design of the composite parse. the composite 
+          --  parse function must be recursive, walking through the entire 
+          --  supplied string and repeatedly parsing it to generate the nested 
+          --  structure. this dictates a parse function like the one below.
+          --    do
+          --      <- `readsprec` pr r  => say, function `f`
+          --      <- `lex`             => say, function `g`
+          --      <- `readsPrec` pr r  => say, function `h`
+          --  this kind of structure allows recursive parsing of both left 
+          --  (i.e., before the `lex`) and right (i.e., after the `lex`) sides 
+          --  of the operator to extract nested structures. the composite parse 
+          --  succeeds only if all 3 steps in `do` succeed.
           --
-          -- (readsPrec 0 "(((7 :# 7)))" :: [(T, String)])
-          -- == [(P :# P, "")] => True
+          --  this composite parsing function (& sometimes the one for leaf as 
+          --  well) is usually passed to `readParen`, which then calls 
+          --  `optional`, one way or the other, with this function as argument.  
+          --  this is how `readsPrec` relates these 2 parts of its function.
           --
-          --  (readsPrec 10 (showsPrec 10 ((((P :# P)))) "") :: [(T, String)]) 
-          --  == [(P :# P, "")] => True
+          --  our goal is to first parse parentheses and the nested stuff they 
+          --  enclose, using `mandatory`. to get this done, you take a 
+          --  roundabout route. usually, you start off `readsPrec` call with 0 
+          --  precedence, so in the 1st call, `mandatory` is never called; 
+          --  instead `optional` is called, but you structure your `readsPrec` 
+          --  code in such a way that recursive calls to `readsPrec` from 
+          --  `optional` uses a higher precedence, so that these recursive 
+          --  `readsPrec` calls with higher precedence force `readParen` to 
+          --  invoke `mandatory`, instead of `optional`. `mandatory` then parses 
+          --  any parenthesis, as well as the nested structures enclosed.
+          --
+          --  to do this, within `do`, we set `pr = op_prec + 1`, where 
+          --  `op_prec` is the operator precedence, for `readsPrec` calls in `f` 
+          --  & `g`, so that `readsPrec` calls in `f`, & `g`, invoked from 
+          --  `optional`, will invoke `mandatory` in `readParen`. this step is 
+          --  also important to avoid infinite recursion. if you don't do this 
+          --  step, then `readsPrec` calls in `f` & `g` will invoke `optional` 
+          --  once again with the same argument & precedence, which will invoke 
+          --  `optional` again, and so on ... and the calls will never end.
+          --
+          --  invoking `mandatory`, as described, will parse any starting 
+          --  parenthesis, and then invoke `optional` with a different string.  
+          --  `optional` will once again, through `readsPrec` calls in `f` & 
+          --  `g`, invoke `mandatory`, and if there are no more starting 
+          --  parenthesis, the parse will return [] (fail).  also, if there is 
+          --  no starting parenthesis to begin with, then the first call to 
+          --  `mandatory` (from `optional`, remember?) will return [], and the 
+          --  entire parse will terminate, as it should.
+          --
+          --  usually, `mandatory` parse fails when you have a leaf. in such 
+          --  situations, despite this failure, `readsPrec` calls, through the 
+          --  `++` mentioned above, will return a leaf.
+          --
+          --  if our goal is to parse the nested stuff first, why can't we call 
+          --  `mandatory` at the very start, instead of calling `optional`?  
+          --  well, the opposite approach, calling `mandatory`, instead of 
+          --  `optional` at the start, does not seem to work. for example, the 
+          --  parse will fail if the string does not begin with parenthesis.
+          --
+          --  even if parenthesis is present at the start, calling `mandatory` 
+          --  first, without at first going through `f` & `g` calls in 
+          --  `optional`, seems to result in an incomplete parse. here is an 
+          --  example from `Tree`, where the 2nd list element (an incomplete 
+          --  parse) comes from `mandatory` call:
+          --
+          --      show ((Leaf 1 :^: Leaf 2) :^: Leaf (3 :: Int))
+          --        = "(Leaf 1 :^: Leaf 2) :^: Leaf 3"
+          --      readsPrec 0 "(Leaf 1 :^: Leaf 2) :^: Leaf 3"
+          --      :: [(Tree Int, String)]
+          --      = [ ((Leaf 1 :^: Leaf 2) :^: Leaf 3,"") => `optional = g r`
+          --        , Leaf 1 :^: Leaf 2," :^: Leaf 3")    => `= ++ mandatory r`
+          --        ]
+          --
+          --  so why does this happen? well, to understand why, we have to first 
+          --  understand how the recursive parse happens. for a given string, 
+          --  the parse always goes from left to right, but not all 
+          --  left-to-right parses succeed. to be successful, the parse needs to 
+          --  be "centered" on the "root operator" or the top node; otherwise, 
+          --  the parse will be incomplete or return [].
+          --
+          --  as you can see below, although there are 2 `:^:` operators in the 
+          --  below structure, only one of them is the "root" or top node:
+          --
+          --     ( Leaf 1
+          --       :^:           => calling `mandatory` first parses this node.
+          --       Leaf 2
+          --     )
+          --     :^:             => "root operator" or top node.
+          --     Leaf 3
+          --
+          --  so let us see how the `optional` parse works on this structure.
+          --    1. when `optional` is called first, the parse is first centered 
+          --       on `:^:`, and then `f` & `g` functions are called to parse 
+          --       the left & right sides of `:^:`.
+          --    2. `readsPrec` in `f` calls `readParen` with a new precedence, 
+          --       which forces `readParen` to call `mandatory`.
+          --    3. `mandatory` begins the parse from left, & parses "(", the 
+          --       enclosed nested structure, & ")", returning (`Leaf 
+          --       1 :^: Leaf 2`, ":^: Leaf 3").
+          --    4. `lex` parses remaining string, returning (":^:", "Leaf 3").
+          --    5. next, `readsPrec` in `g` calls `readParen` with a new 
+          --       precedence to parse the remaining string returned by `lex`.
+          --    6. `readParen` calls `mandatory` to do this parse. `mandatory` 
+          --       begins the ")" parse from left, but there is no starting 
+          --       parenthesis, so that parse fails, returning [].
+          --    7. `readsPrec` in `g`, through `++`  calls the leaf parser, 
+          --       which returns (`Leaf 3`, "").
+          --    8. the entire result of the complete parse (`(Leaf 1 :^: Leaf 
+          --       2) :^: Leaf 3`, "") is then returned.
+          --
+          --  now let us look at the second case, where `mandatory` is first 
+          --  called, without going through `f` &  `g` calls in `optional.
+          --    1. `optional` r = f' r ++ `mandatory` r
+          --    2. in the steps just listed above, we looked at how the parse 
+          --       happens with f' r.  now we look at the part after `++`.
+          --    3. `mandatory` begins the parse from left, parses "(", then 
+          --       calls `optional` to parse the remaining string.
+          --    4. `optional` centers the parse on `:^:` and invokes `f` & `g`.
+          --    5. `readsPrec` in `f` calls `readParen` with a new a precedence, 
+          --       which forces `readParen` to call `mandatory`.
+          --    6. `mandatory` begins the parenthesis parse, but there is no 
+          --       "(", so the parse fails, returning [].
+          --    7. `readsPrec` in `f` then calls the leaf parser (through `++`), 
+          --       returning (`Leaf 1`, ":^: Leaf 2) :^: Leaf 3")
+          --    8. `lex` (remaining) => (":^:", "Leaf 2) :^: Leaf 3".
+          --    9. `readsPrec` in `g` then parses the remaining string, just 
+          --       like steps 4, 5, & 6, returning (`Leaf 2, ") :^: Leaf 3").
+          --    10. `mandatory` (step 3) parses ")", giving (")", ":^: Leaf 3".
+          --    11. the returned parse result will be (`Leaf 
+          --        1 :^: Leaf 2`, ":^: Leaf 3"), an incomplete parse.
+          --
+          --  as stated, correct parse requires that the parse be centered on 
+          --  the "root" node. to center the parse on the "root" node, we should 
+          --  first call `optional`, which first centers the parse on `:^:` & 
+          --  then calls `f` & `g` to parse left & right sides of the "root" 
+          --  node. `f` & `g`, through `readsPrec`, then calls `mandatory` to 
+          --  parse parentheses and nested structures on the left & right, 
+          --  giving a complete parse. on the other hand, if you call 
+          --  `mandatory` first, it parses parenthesis before centering parse on 
+          --  `:^:`, giving an incomplete parse centered on a non-root node.
+          --
+          --  there is another situation you should be aware of where 
+          --  `mandatory` may be invoked at the start in an incorrect manner.  
+          --  suppose your `readsPrec` code is good, but you made the cardinal 
+          --  mistake of invoking `readsPrec` with a DIFFERENT precedence than 
+          --  `showsPrec`, you could then end up invoking `manadtory` at the 
+          --  start, and most likely, your parse will be incorrect:
+          --
+          --    (readsPrec 10 (showsPrec 5 (P :# P) "") :: [(T, String)])
+          --      == [(P :# P, "")] => False
+          --
+          --  but if they have SAME precedence, the parse will succeed:
+          --
+          --    (readsPrec 10 (showsPrec 10 (P :# P) "") :: [(T, String)])
+          --      == [(P :# P, "")] => True
+          --
+          --  once we got the STARTING parenthesis, subsequent `readsPrec` calls 
+          --  from `optional` (itself called from `mandatory`) will invoke 
+          --  `mandatory` (because of higher precedence in `f` & `g` cited 
+          --  above), which will handle any number of subsequent parenthesis.
+          --
+          --    (readsPrec 0 "(((7 :# 7)))" :: [(T, String)])
+          --      == [(P :# P, "")] => True
+          --
+          --    (readsPrec 10 (showsPrec 10 ((((P :# P)))) "")
+          --      :: [(T, String)])
+          --      == [(P :# P, "")] => True
+          --
+          --  so in summary the composite part of `readsPrec` is designed in 
+          --  such a way that you start off with 0 precedence, so in the first 
+          --  pass you can not not handle any starting parenthesis. instead, you 
+          --  use the first pass to center your parse on the "root" node, and 
+          --  you handle parentheses in subsequent recursive `readsPrec` calls 
+          --  by suddenly upping the precedence. that is, you first get into the 
+          --  nested structure (depicted above) and then handle the parentheses 
+          --  problem in each of the `readsPrec` calls there, rather than worry 
+          --  about parentheses before getting into the structure.  this way, 
+          --  you can handle conditions where there are no parentheses 
+          --  whatsoever as well as where there are parentheses. had you gone 
+          --  the other way, with higher precedence in the 1st pass, the parse 
+          --  would have failed if there were no parenthesis to begin with.
+          --
+          --  to enable a successful parse, the structure of `readsPrec` usually 
+          --  mirrors the structure of `showsPrec`, especially the parts 
+          --  handling precedence and therefore parenthesis. i mention this 
+          --  detail because it is important to design `showsPrec` in such a way 
+          --  to output string with parenthesis at right places (using 
+          --  precedence) that can be parsed by `readsPrec`, using the design 
+          --  discussed above. parentheses indicate (usually) nested structures, 
+          --  and having parenthesis at right places in the string fed to 
+          --  `readsPrec` will allow successful recursive parse using precedence 
+          --  values.  if not, you can get bad parses or stack overflow.
           ----------------------------------------------------------------------
           --  `(d > op_prec)` condition corresponds to the one in `showsPrec`.
           readPP = readParen (d > op_prec) $ \r' -> do
@@ -691,5 +972,132 @@ instance Read T where
           op_prec   = 6 :: Int
           app_prec  = 10 :: Int
 
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | example 5: `Show` instance for `Expr`.
+-- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
+
+-- | `Expr` type declaration.
+data Expr =
+  Const Int |
+  Expr :+: Expr |
+  Expr :-: Expr |
+  Expr :*: Expr |
+  Expr :/: Expr deriving Eq
+--------------------------------------------------------------------------------
+-- | operator associativity & precedence.
+infixl 6 :+:
+infixl 6 :-:
+infixl 7 :*:
+infixl 7 :/:
+--------------------------------------------------------------------------------
+-- | custom `Show` instance.
+-- source: /u/ brian huffman @ https://tinyurl.com/4tdrxt72 (so)
+-- examples:
+--    show (Const 1 :+: Const 2 :*: Const 3 :+: Const 4)
+--      = "(Const 1 :+: (Const 2 :*: Const 3)) :+: Const 4"
+--
+-- NOTE: `Show` instance code is from /u/ brian huffman @ so (link above), but i 
+-- could not easily write a `readsPrec` to parse his `showsPrec` output, because 
+-- brian's `showsPrec` does NOT ignore associativity. so i changed his code to 
+-- ignore associativity. now `showsPrec` ups precedence on both sides of the 
+-- operator, as opposed to just one side in brian's code, resulting in 
+-- parenthesis even when associativity dictates otherwise.
+instance Show Expr where
+  showsPrec p e0 = case e0 of
+     Const n -> showParen (p > 10) $ showString "Const " . showsPrec 11 n
+     x :+: y -> showParen (p > 6) $ showsPrec 7 x . showString " :+: " . showsPrec 7 y
+     x :-: y -> showParen (p > 6) $ showsPrec 7 x . showString " :-: " . showsPrec 7 y
+     x :*: y -> showParen (p > 7) $ showsPrec 8 x . showString " :*: " . showsPrec 8 y
+     x :/: y -> showParen (p > 7) $ showsPrec 8 x . showString " :/: " . showsPrec 8 y
+--------------------------------------------------------------------------------
+-- | `Read` instance.
+-- author: Prem Muthedath.
+--------------------------------------------------------------------------------
+-- | examples:
+--    readsPrec 0
+--      "(Const 1 :+: (Const 2 :*: Const 3)) :+: Const 4"
+--      :: [(Expr, String)]
+--      = Const 1 :+: Const 2 :*: Const 3 :+: Const 4
+--    show (Const 1 :+: Const 2 :*: Const 3 :+: Const 4)
+--      = "(Const 1 :+: (Const 2 :*: Const 3)) :+: Const 4"
+--    (read "(Const 1 :+: (Const 2 :*: Const 3)) :+: Const 4"
+--      :: Expr) =
+--      Const 1 :+: Const 2 :*: Const 3 :+: Const 4
+--
+-- | another example:
+--    show
+--      (Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2))
+--      = "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--    readExp1 0
+--      "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--      :: [(Expr, String)]
+--      = []
+--    readExp2 0
+--      "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--      :: [(Expr, String)]
+--      = [(Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2),"")]
+--    readExp3 0
+--      "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--      :: [(Expr, String)]
+--      = []
+--    readExp4 0
+--      "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--      :: [(Expr, String)]
+--      = [(Const 1 :/: Const 2," :-: (Const (-1) :+: Const 2)")]
+--    readConst 0
+--      "Const 1 :/: Const 2 :-: (Const (-1) :+: Const 2)"
+--      :: [(Expr, String)]
+--      = [(Const 1, " :/: Const 2 :-: (Const (-1) :+: Const 2)")]
+--------------------------------------------------------------------------------
+-- NOTE: as stated before, though all parses walk the string left to right, the 
+-- successful parse is centered on the "root" node.
+--
+-- here we have 4 operators, and it is impossible to know beforehand which of 
+-- these in any given string is the root node. so we try all options, which is 
+-- what `++` in the code below represent.
+--
+-- likewise, when parsing the left & right sides of any operator, again it is 
+-- impossible to know which operator is the "root" node in the nested structure, 
+-- so we use `++` to try all options.
+--
+-- in the example above, `:-:` is the "root" node, which is why `readExp2` gives 
+-- a complete parse. others return either [] (failed) or incomplete parses.
+--------------------------------------------------------------------------------
+instance Read Expr where
+  readsPrec d r = readExp1 r
+                  ++ readExp2 r
+                  ++ readExp3 r
+                  ++ readExp4 r
+                  ++ readConst r
+    where readExp1 :: ReadS Expr
+          readExp1 = readParen (d > 6)
+              (\r' -> [(u:+:v, w) |
+                 (u, s)     :: (Expr, String)   <- readsPrec 7 r',
+                 (":+:", t) :: (String, String) <- lex s,
+                 (v, w)     :: (Expr, String)   <- readsPrec 7 t])
+          readExp2 :: ReadS Expr
+          readExp2 = readParen (d > 6)
+              (\r' -> [(u:-:v, w) |
+                 (u, s)     :: (Expr, String)   <- readsPrec 7 r',
+                 (":-:", t) :: (String, String) <- lex s,
+                 (v, w)     :: (Expr, String)   <- readsPrec 7 t])
+          readExp3 :: ReadS Expr
+          readExp3 = readParen (d > 7)
+              (\r' -> [(u:*:v, w) |
+                 (u, s)     :: (Expr, String)   <- readsPrec 8 r',
+                 (":*:", t) :: (String, String) <- lex s,
+                 (v, w)     :: (Expr, String)   <- readsPrec 8 t])
+          readExp4 :: ReadS Expr
+          readExp4 = readParen (d > 7)
+              (\r' -> [(u:/:v, w) |
+                 (u, s)     :: (Expr, String)   <- readsPrec 8 r',
+                 (":/:", t) :: (String, String) <- lex s,
+                 (v, w)     :: (Expr, String)   <- readsPrec 8 t])
+          readConst :: ReadS Expr
+          readConst = readParen (d > 10)
+              (\r' -> [(Const m, t) |
+                 ("Const", s) :: (String, String) <- lex r',
+                 (m, t)       :: (Int, String)    <- readsPrec 11 s])
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------

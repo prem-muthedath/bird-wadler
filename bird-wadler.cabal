@@ -17,7 +17,7 @@ name:               bird-wadler
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
-synopsis:           study of bird & wadler book.
+synopsis:           study of bird-wadler text on functional programming.
 
 -- A longer description of the package.
 -- description:
@@ -34,8 +34,7 @@ license:            NONE
 -- The package author(s).
 author:             Prem Muthedath
 
--- An email address to which users can send suggestions, bug reports, and 
--- patches.
+-- An email address to which users can send suggestions, bug reports, and patches.
 maintainer:
 
 -- A copyright notice.
@@ -54,19 +53,15 @@ tested-with: GHC == 8.10.4
 
 library
     -- Modules exported by the library.
-    exposed-modules:  C2Num,
-                      C2Bool,
-                      C2Char,
-                      C2Show,
-                      C2Read,
-                      C2Lex,
-                      C2Strings,
-                      C6Queens,
-                      -- test modules
-                      QCTest,
-                      C2ReadTest,
-                      C2BoolTest
-
+    exposed-modules:
+        C2Lex
+        C2Strings
+        C2Char
+        C2Bool
+        C2Num
+        C2Show
+        C2Read
+        C6Queens
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -75,16 +70,46 @@ library
     other-extensions: ScopedTypeVariables
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ==4.14.1.0,
-                      random ==1.1,
-                      QuickCheck ==2.14.2
+    build-depends:    base ==4.14.1.0
 
     -- Directories containing source files.
-    hs-source-dirs:   src, test
+    hs-source-dirs:   src
 
     -- Base language which the package is written in.
     default-language: Haskell2010
 
     -- GHC options.
     ghc-options:  -O2 -fforce-recomp -Wall -Werror
+
+test-suite bird-wadler-test
+    -- Base language which the package is written in.
+    default-language: Haskell2010
+
+    -- The interface type and version of the test suite.
+    type:             exitcode-stdio-1.0
+
+    -- Directories containing source files.
+    hs-source-dirs:   test
+
+    -- The entrypoint to the test suite.
+    main-is:          Main.hs
+
+    -- Modules included in this executable, other than Main.
+    other-modules:    QCTest,
+                      C2ReadTest,
+                      C2BoolTest
+
+    -- LANGUAGE extensions used by modules in this package.
+    other-extensions: ScopedTypeVariables,
+                      TemplateHaskell
+
+    -- Test dependencies.
+    build-depends:    base ==4.14.1.0,
+                      QuickCheck ==2.14.2,
+                      random ==1.1,
+                      bird-wadler
+
+    -- GHC options.
+    ghc-options:  -O2 -fforce-recomp -Wall -Werror
+
 --------------------------------------------------------------------------------

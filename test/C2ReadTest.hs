@@ -13,7 +13,6 @@
 -- NOTE: for old manual tests, see ../notes/chap2-Read-manual-tests.lhs
 --------------------------------------------------------------------------------
 module C2ReadTest where
-
 --------------------------------------------------------------------------------
 import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
@@ -511,6 +510,117 @@ prop_readTTuple = forAll (genTuple :: Gen (T, T)) $
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+-- | QuickCheck tests for `Expr` read.
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `Expr`.
+instance Arbitrary (Expr) where
+  arbitrary = sized genExpr
+
+-- | helper functions for implementing arbitrary.
+-- | generator for `Expr` type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+genExpr :: Int -> Gen Expr
+genExpr 0 = liftM Const (arbitrary :: Gen Int)
+genExpr n = frequency
+      [ (1, liftM Const (arbitrary :: Gen Int))
+      -- NOTE: originally, i had divided by 2, but that generates very large 
+      -- nested expressions, and quickcheck takes 8 - 10 minutes to run; 
+      -- dividing by 3, on the other hand, runs the tests in < 20 secs, but also 
+      -- generates reasonably sized nested expressions.
+      , (2, liftM2 (:+:) (genExpr (n `div` 3)) (genExpr (n `div` 3)))
+      , (2, liftM2 (:-:) (genExpr (n `div` 3)) (genExpr (n `div` 3)))
+      , (2, liftM2 (:*:) (genExpr (n `div` 3)) (genExpr (n `div` 3)))
+      , (2, liftM2 (:/:) (genExpr (n `div` 3)) (genExpr (n `div` 3)))
+      ]
+
+-- | valid `Expr` property.
+prop_validExpr :: Property
+prop_validExpr = forAll (arbitrary :: Gen Expr) $
+  \x -> classify (isValid x) "valid Expr" $
+        isValid x
+  where isValid :: Expr -> Bool
+        isValid (Const _) = True
+        isValid (x :+: y) = isValid x && isValid y
+        isValid (x :-: y) = isValid x && isValid y
+        isValid (x :*: y) = isValid x && isValid y
+        isValid (x :/: y) = isValid x && isValid y
+
+-- | quickcheck property to test `Expr` read.
+prop_readExpr :: Property
+prop_readExpr = forAll (arbitrary :: Gen Expr) $
+  \x -> classify (isConst x) "Const" $
+        classify (depthExpr x > 3) "depth > 3" $
+        classify (ldepthExpr x > 3) "left depth > 3" $
+        classify (rdepthExpr x > 3) "right depth > 3" $
+        checkRead readsPrec x
+
+-- | some helper functions.
+isConst :: Expr -> Bool
+isConst (Const _) = True
+isConst _         = False
+
+depthExpr :: Expr -> Int
+depthExpr (Const _) = 1
+depthExpr (l :+: r) = 1 + max (depthExpr l) (depthExpr r)
+depthExpr (l :-: r) = 1 + max (depthExpr l) (depthExpr r)
+depthExpr (l :*: r) = 1 + max (depthExpr l) (depthExpr r)
+depthExpr (l :/: r) = 1 + max (depthExpr l) (depthExpr r)
+
+ldepthExpr :: Expr -> Int
+ldepthExpr (Const _) = 1
+ldepthExpr (l :+: _) = 1 + ldepthExpr l
+ldepthExpr (l :-: _) = 1 + ldepthExpr l
+ldepthExpr (l :*: _) = 1 + ldepthExpr l
+ldepthExpr (l :/: _) = 1 + ldepthExpr l
+
+rdepthExpr :: Expr -> Int
+rdepthExpr (Const _) = 1
+rdepthExpr (_ :+: r) = 1 + rdepthExpr r
+rdepthExpr (_ :-: r) = 1 + rdepthExpr r
+rdepthExpr (_ :*: r) = 1 + rdepthExpr r
+rdepthExpr (_ :/: r) = 1 + rdepthExpr r
+
+-- | property to test `Expr` read of random non-Expr string.
+prop_readNonExprStr :: Property
+prop_readNonExprStr = forAll (notExpr :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem string" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(Expr, String)]) == []
+  where notExpr :: Gen String
+        notExpr = frequency
+            [ (1, (arbitrary :: Gen String)
+                  `suchThat`
+                  (\x -> not ("Const" `isInfixOf` x)))
+            , (2, (arbitrary :: Gen String)
+                  `suchThat`
+                  (\x -> all (not . isDigit) x))
+            ]
+
+-- | quickcheck property to test `Expr` list read.
+prop_readExprList :: Property
+prop_readExprList = forAll (exprList :: Gen [Expr]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         classify (length xs > 3) "have > 3 elements" $
+         checkRead readsPrec xs
+  where exprList :: Gen [Expr]
+        -- limit list size to <= 3, so that tests can be run quickly.
+        exprList = (genList :: Gen [Expr])
+                   `suchThat`
+                   (\x -> (length x) <= 3)
+
+-- | quickcheck property to test `Expr` tuple read.
+prop_readExprTuple :: Property
+prop_readExprTuple = forAll (genTuple :: Gen (Expr, Expr)) $
+  \(x, y) -> classify (isConst x) "fst is Const _" $
+             classify (isConst y) "snd is Const _" $
+             checkRead readsPrec (x, y)
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | run `quickcheck` on all properties automatically.
 
 -- | test setup.
@@ -530,6 +640,8 @@ runTests = $quickCheckAll
 --    sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
 --    (<$>) :: Functor f => (a -> b) -> f a -> f b
 --    and :: Foldable t => t Bool -> Bool
+-- NOTE: you can only see the `EXITSUCCESS` or `EXITFAILURE` message in GHCi.  
+-- so this function is really for GHCi use.
 runAllQC :: IO ()
 runAllQC = do
   good <- and <$> sequence [C2ReadTest.runTests]
