@@ -1,8 +1,9 @@
 -- | Main module: runs all quickcheck tests in `bird-wadler` package.
 -- author: Prem Muthedath, DEC 2021.
 --------------------------------------------------------------------------------
+module Main where
+--------------------------------------------------------------------------------
 import C2ReadTest
-
 --------------------------------------------------------------------------------
 -- | run all quickcheck tests in imported modules.
 -- `main` acts as test runner of quickcheck tests.

@@ -5,10 +5,10 @@
 -- | quickcheck tests for ../src/C2Read.hs
 -- author: Prem Muthedath, DEC 2021.
 -- usage:
---  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  1. `cd` to `bird-wadler`, this package's top-level directory.
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. at GHCi prompt, enter `import C2ReadTest`.
---  4. you can then invoke `runAllQC` to run all quickcheck tests.
+--  4. you can then invoke `ghciQC` to run all quickcheck tests.
 
 -- NOTE: for old manual tests, see ../notes/chap2-Read-manual-tests.lhs
 --------------------------------------------------------------------------------
@@ -18,9 +18,9 @@ import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
 import Data.List (isInfixOf)
 import Data.Char (isDigit)
-import System.Exit (exitSuccess, exitFailure)
 
 import C2Read
+import Common (ghciRunner)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | QuickCheck tests for `Tree`.
@@ -634,19 +634,8 @@ runTests :: IO Bool
 runTests = $quickCheckAll
 
 --------------------------------------------------------------------------------
--- | test runner.
--- run all tests and exit with the appropriate unix status code.
--- https://begriffs.com/posts/2017-01-14-design-use-quickcheck.html
---    sequence :: (Traversable t, Monad m) => t (m a) -> m (t a)
---    (<$>) :: Functor f => (a -> b) -> f a -> f b
---    and :: Foldable t => t Bool -> Bool
--- NOTE: you can only see the `EXITSUCCESS` or `EXITFAILURE` message in GHCi.  
--- so this function is really for GHCi use.
-runAllQC :: IO ()
-runAllQC = do
-  good <- and <$> sequence [C2ReadTest.runTests]
-  if good
-     then exitSuccess
-     else exitFailure
+-- | test runner for GHCi usage.
+ghciQC :: IO ()
+ghciQC = ghciRunner runTests
 
 --------------------------------------------------------------------------------

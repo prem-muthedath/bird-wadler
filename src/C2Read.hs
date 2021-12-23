@@ -3,7 +3,7 @@
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- `Read` class: example.
 -- usage:
---  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  1. `cd` to `bird-wadler`, this package's top-level directory.
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. next, at GHCi prompt, enter `import C2Read`.
 --  4. you can then invoke any of the top-elevel functions.
@@ -170,12 +170,12 @@ instance (Show a) => Show (Tree a) where
          -- should group stuff in such a way as to make the order clear to a 
          -- subsequent consumer of `show`'s output. this consumer is 
          -- `readsPrec`, which is required tp parse `showsPrec` output back to a 
-         -- `Tree`. this strategy makes `showsPrec` & `readsPrec` compatible.  
-         -- if you don't this, `readsPrec` parse will fail or be incomplete!
+         -- `Tree`. this strategy makes `showsPrec` & `readsPrec` compatable.  
+         -- if you don't do this, `readsPrec` parse will fail or be incomplete!
          --
          -- in this example, because multiple instances of `:^:` all have the 
          -- same precedence, `show`'s output groups then from right, as it 
-         -- should because of right associativity, using right parenthesis. the 
+         -- should, because of right associativity, using right parenthesis. the 
          -- parenthesis makes clear the grouping of operators of same 
          -- precedence, even though the right associativity dictates that no 
          -- parenthesises are required (isn't the group obvious, joe?):
@@ -580,6 +580,7 @@ instance (Read a) => Read (SomeType a) where
 -- but it failed (i.e., produced []) for the case below that had deep nesting:
 --      show $ Mix (Mix (Type 4) (Mix (Type 5) (Type 6))) (Type 7)
 --        = "((4 (5 6)) 7)"
+--------------------------------------------------------------------------------
 readsPrecST :: forall a. (Read a) => Int -> ReadS (SomeType a)
 readsPrecST d0 r0 = let a1 = readMix_ r0
                         a2 = readType_ r0
@@ -723,33 +724,38 @@ instance Read P where
 instance Read T where
   readsPrec d r = readPP r ++ readT r
     where readPP :: String -> [(T, String)]
-          --  NOTE: `readsPrec` parses a string to extract the data structure.  
-          --  in general, for nested data types, this involves parsing the 
-          --  string either for a nested structure or a leaf. you parse through 
-          --  the nested structures until you get to a leaf: that is the flow.  
-          --  parentheses in the string argument usually enclose nested 
-          --  structures, so correct parsing of parentheses and the nested 
-          --  structures they enclose, using precedence, is key. that, in 
+          --  NOTE: `readsPrec` parses a string, the output of `showsPrec`, to 
+          --  extract a data structure, the original argument to `showsPrec`.  
+          --  `readsPrec` is nothing but the exact reverse operation of 
+          --  `showsPrec`, and it is guaranteed to work only for inputs that are 
+          --  outputs of its corresponding `showsPrec` for the SAME precedence. 
+          --
+          --  in general, for nested data types, `readsPrec` algorithm involves 
+          --  parsing the string either for a nested structure or a leaf. you 
+          --  parse through nested structures until you get to a leaf: that is 
+          --  the flow.  parentheses in `showsPrec` output usually enclose 
+          --  nested structures, so correct parsing of parentheses and the 
+          --  nested structures they enclose, using precedence, is key. that in, 
           --  essence, is what `readsPrec` is all about.
           --
-          --  so how do we implement `readsPrec`? we got 2 inter-related 
-          --  problems at hand: one, to parse parentheses correctly using 
-          --  precedence; two, to recursively parse the string to extract the 
-          --  nested data structure. `readParen` call in `readsPrec` code 
-          --  addresses the 1st problem; a combination of parsing functions in 
-          --  `readsPrec` code addresses the 2nd problem. and we do this in  
-          --  sequence: first parse parentheses, then enclosed structures 
+          --  so how to implement `readsPrec`? we got 2 inter-related problems 
+          --  at hand: one, to parse parentheses correctly using precedence; 
+          --  two, to recursively parse the string to extract enclosed nested 
+          --  data structures. `readParen` call in `readsPrec` code addresses 
+          --  the 1st problem; a combination of parsing functions in `readsPrec` 
+          --  code addresses the 2nd problem. `readsPrec` sequences these two  
+          --  operations: first parse parentheses, then enclosed structures 
           --  -- repeatedly, recursively, until you exhaust the string.
           --
           --  `readParen` uses a condition on precedence to parse any STARTING  
           --  parenthesis inserted by `showsPrec`. if the condition is true, 
-          --  implying presence of parenthesis, `readParen` calls `mandatory`, a 
-          --  local function, to parse any starting parenthesis and the nested 
+          --  implying presence of parentheses, `readParen` calls `mandatory`, a 
+          --  local function, to parse any starting parentheses and the nested 
           --  data structures they enclose. otherwise, `readParen` calls 
-          --  `optional`, another local function, to parse the string. as a 
-          --  note, the parseing algorithm walks the string, left to right, 
-          --  parsing it piece by piece, so "STARTING" parenthesis here refers 
-          --  to parenthesis at the start of any string piece fed to parse.
+          --  `optional`, another local function, to parse the string. note that 
+          --  parsing algorithm walks the string left to right, parsing it piece 
+          --  by piece, so "STARTING" parenthesis here refers to parenthesis at 
+          --  the start of any string piece fed to parse.
           --
           --  in general, `readsPrec` parse for a recursive type consists of 
           --  2 parts: one for the composite & the other for the leaf.
@@ -777,10 +783,10 @@ instance Read T where
           --  of the operator to extract nested structures. the composite parse 
           --  succeeds only if all 3 steps in `do` succeed.
           --
-          --  this composite parsing function (& sometimes the one for leaf as 
-          --  well) is usually passed to `readParen`, which then calls 
-          --  `optional`, one way or the other, with this function as argument.  
-          --  this is how `readsPrec` relates these 2 parts of its function.
+          --  this composite parsing function (sometimes the leaf parser as 
+          --  well) is usually passed to `readParen`, which calls `optional`, in 
+          --  one way or the other, with this function as argument. this is how 
+          --  `readsPrec` relates these 2 parts of its job.
           --
           --  our goal is to first parse parentheses and the nested stuff they 
           --  enclose, using `mandatory`. to get this done, you take a 
@@ -791,7 +797,7 @@ instance Read T where
           --  `optional` uses a higher precedence, so that these recursive 
           --  `readsPrec` calls with higher precedence force `readParen` to 
           --  invoke `mandatory`, instead of `optional`. `mandatory` then parses 
-          --  any parenthesis, as well as the nested structures enclosed.
+          --  any parentheses, as well as the nested structures enclosed.
           --
           --  to do this, within `do`, we set `pr = op_prec + 1`, where 
           --  `op_prec` is the operator precedence, for `readsPrec` calls in `f` 
@@ -803,10 +809,10 @@ instance Read T where
           --  `optional` again, and so on ... and the calls will never end.
           --
           --  invoking `mandatory`, as described, will parse any starting 
-          --  parenthesis, and then invoke `optional` with a different string.  
+          --  parentheses, and then invoke `optional` with a different string.  
           --  `optional` will once again, through `readsPrec` calls in `f` & 
           --  `g`, invoke `mandatory`, and if there are no more starting 
-          --  parenthesis, the parse will return [] (fail).  also, if there is 
+          --  parentheses, the parse will return [] (fail).  also, if there is 
           --  no starting parenthesis to begin with, then the first call to 
           --  `mandatory` (from `optional`, remember?) will return [], and the 
           --  entire parse will terminate, as it should.
@@ -835,11 +841,11 @@ instance Read T where
           --        , Leaf 1 :^: Leaf 2," :^: Leaf 3")    => `= ++ mandatory r`
           --        ]
           --
-          --  so why does this happen? well, to understand why, we have to first 
-          --  understand how the recursive parse happens. for a given string, 
-          --  the parse always goes from left to right, but not all 
-          --  left-to-right parses succeed. to be successful, the parse needs to 
-          --  be "centered" on the "root operator" or the top node; otherwise, 
+          --  so why does this happen? well, let us look at how the recursive 
+          --  parse happens. for a given string, the parse always goes from left 
+          --  to right, but not all left-to-right parses succeed.  to be 
+          --  successful, the parse, before doing anything else, first needs to 
+          --  "center" itself on the "root operator" or the top node; otherwise, 
           --  the parse will be incomplete or return [].
           --
           --  as you can see below, although there are 2 `:^:` operators in the 
@@ -853,9 +859,9 @@ instance Read T where
           --     Leaf 3
           --
           --  so let us see how the `optional` parse works on this structure.
-          --    1. when `optional` is called first, the parse is first centered 
-          --       on `:^:`, and then `f` & `g` functions are called to parse 
-          --       the left & right sides of `:^:`.
+          --    1. when `optional` is called first, it first "centers" the parse 
+          --       on `:^:`. next, it calls `f` & `g` functions to parse the 
+          --       left & right sides of `:^:`.
           --    2. `readsPrec` in `f` calls `readParen` with a new precedence, 
           --       which forces `readParen` to call `mandatory`.
           --    3. `mandatory` begins the parse from left, & parses "(", the 
@@ -865,22 +871,23 @@ instance Read T where
           --    5. next, `readsPrec` in `g` calls `readParen` with a new 
           --       precedence to parse the remaining string returned by `lex`.
           --    6. `readParen` calls `mandatory` to do this parse. `mandatory` 
-          --       begins the ")" parse from left, but there is no starting 
+          --       begins the "(" parse from left, but there is no starting 
           --       parenthesis, so that parse fails, returning [].
-          --    7. `readsPrec` in `g`, through `++`  calls the leaf parser, 
+          --    7. `readsPrec` in `g`, through `++`, calls the leaf parser, 
           --       which returns (`Leaf 3`, "").
           --    8. the entire result of the complete parse (`(Leaf 1 :^: Leaf 
           --       2) :^: Leaf 3`, "") is then returned.
           --
           --  now let us look at the second case, where `mandatory` is first 
-          --  called, without going through `f` &  `g` calls in `optional.
-          --    1. `optional` r = f' r ++ `mandatory` r
+          --  called, without going through `f` &  `g` calls in `optional`.
+          --    1. `optional r = f' r ++ mandatory r`
           --    2. in the steps just listed above, we looked at how the parse 
           --       happens with f' r.  now we look at the part after `++`.
-          --    3. `mandatory` begins the parse from left, parses "(", then 
-          --       calls `optional` to parse the remaining string.
+          --    3. `mandatory`, instead of first centering the parse on the root 
+          --       node, begins the parse from left, parses "(", then calls 
+          --       `optional` to parse the remaining string.
           --    4. `optional` centers the parse on `:^:` and invokes `f` & `g`.
-          --    5. `readsPrec` in `f` calls `readParen` with a new a precedence, 
+          --    5. `readsPrec` in `f` calls `readParen` with a new precedence, 
           --       which forces `readParen` to call `mandatory`.
           --    6. `mandatory` begins the parenthesis parse, but there is no 
           --       "(", so the parse fails, returning [].
@@ -888,26 +895,34 @@ instance Read T where
           --       returning (`Leaf 1`, ":^: Leaf 2) :^: Leaf 3")
           --    8. `lex` (remaining) => (":^:", "Leaf 2) :^: Leaf 3".
           --    9. `readsPrec` in `g` then parses the remaining string, just 
-          --       like steps 4, 5, & 6, returning (`Leaf 2, ") :^: Leaf 3").
+          --       like steps 4, 5, & 6, returning (`Leaf 2`, ") :^: Leaf 3").
           --    10. `mandatory` (step 3) parses ")", giving (")", ":^: Leaf 3".
           --    11. the returned parse result will be (`Leaf 
           --        1 :^: Leaf 2`, ":^: Leaf 3"), an incomplete parse.
           --
-          --  as stated, correct parse requires that the parse be centered on 
-          --  the "root" node. to center the parse on the "root" node, we should 
-          --  first call `optional`, which first centers the parse on `:^:` & 
-          --  then calls `f` & `g` to parse left & right sides of the "root" 
-          --  node. `f` & `g`, through `readsPrec`, then calls `mandatory` to 
-          --  parse parentheses and nested structures on the left & right, 
-          --  giving a complete parse. on the other hand, if you call 
-          --  `mandatory` first, it parses parenthesis before centering parse on 
-          --  `:^:`, giving an incomplete parse centered on a non-root node.
+          --  as stated before, correct parse requires that it first "centers" 
+          --  itself on the "root" node. when we call `optional` first, it first 
+          --  centers the parse on `:^:` (step 1) & then calls `f` & `g` to 
+          --  parse left & right sides of the "root" node. `f` & `g`, through 
+          --  `readsPrec`, then calls `mandatory` to parse parentheses and 
+          --  nested structures on the left & right, giving a complete parse.
+          --
+          --  note that when `optional` centers the parse on `:^:`, it has no 
+          --  idea where the root node is, but the act of centering the parse on 
+          --  a node first before doing anything else invariably makes the 
+          --  "centering" node the "root". that's why this algorithm works!
+          --
+          --  on the other hand, if you call `mandatory` first, it parses 
+          --  parenthesis first (step 3) before centering the parse on `:^:` 
+          --  (step 4). because of this approach, the node it centers the parse 
+          --  on in step 4 turns out to be NOT the "root", so you get an 
+          --  incomplete parse.
           --
           --  there is another situation you should be aware of where 
           --  `mandatory` may be invoked at the start in an incorrect manner.  
           --  suppose your `readsPrec` code is good, but you made the cardinal 
           --  mistake of invoking `readsPrec` with a DIFFERENT precedence than 
-          --  `showsPrec`, you could then end up invoking `manadtory` at the 
+          --  `showsPrec`, you could then end up invoking `mandatory` at the 
           --  start, and most likely, your parse will be incorrect:
           --
           --    (readsPrec 10 (showsPrec 5 (P :# P) "") :: [(T, String)])
@@ -934,12 +949,12 @@ instance Read T where
           --  such a way that you start off with 0 precedence, so in the first 
           --  pass you can not not handle any starting parenthesis. instead, you 
           --  use the first pass to center your parse on the "root" node, and 
-          --  you handle parentheses in subsequent recursive `readsPrec` calls 
-          --  by suddenly upping the precedence. that is, you first get into the 
-          --  nested structure (depicted above) and then handle the parentheses 
-          --  problem in each of the `readsPrec` calls there, rather than worry 
-          --  about parentheses before getting into the structure.  this way, 
-          --  you can handle conditions where there are no parentheses 
+          --  then you handle parentheses in subsequent recursive `readsPrec` 
+          --  calls by suddenly upping the precedence. that is, you first get 
+          --  into the nested structure (depicted above) and then handle the 
+          --  parentheses problem in each of the `readsPrec` calls there, rather 
+          --  than worry about parentheses before getting into the structure.  
+          --  this way, you can handle conditions where there are no parentheses 
           --  whatsoever as well as where there are parentheses. had you gone 
           --  the other way, with higher precedence in the 1st pass, the parse 
           --  would have failed if there were no parenthesis to begin with.

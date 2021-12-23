@@ -1,22 +1,22 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | quickcheck tests for ../src/C2Bool.hs
 -- author: Prem Muthedath, DEC 2021.
 -- usage:
---  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  1. `cd` to `bird-wadler`, this package's top-level directory.
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. at GHCi prompt, enter `import C2BoolTest`.
---  4. you can then invoke `runAllQC` to run all quickcheck tests.
+--  4. you can then invoke `ghciQC` to run all quickcheck tests.
 
 --------------------------------------------------------------------------------
 module C2BoolTest where
-
 --------------------------------------------------------------------------------
 import Test.QuickCheck
 import Data.List (sort)
 
 import C2Bool
-import QCTest
+import Common (ghciRunner)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | quickcheck testing -- leap year stuff.
@@ -167,18 +167,21 @@ classifys _             = error "need exactly a 3-element list."
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- | run all `QuickCheck` tests.
-runAllQC :: IO ()
-runAllQC = qc tests
-  where tests :: [(String, Property)]
-        tests = [("leap equivalence", prop_leap_equiv),
-                 ("leap year", prop_lyear),
-                 ("proper year", prop_year),
-                 ("triangle: valid output", prop_trian_valid),
-                 ("triangle: double equivalence", prop_trian_double_equiv),
-                 ("no triangle", prop_trian_bad),
-                 ("equilateral", prop_trian_equi),
-                 ("isoceles", prop_trian_iso),
-                 ("scalene", prop_trian_scal)
-                ]
+-- | run `quickcheck` on all properties automatically.
+
+-- | test setup.
+-- set up to run quickcheck using template haskell; needs template haskell extn.
+-- https://begriffs.com/posts/2017-01-14-design-use-quickcheck.html
+-- /u/ willem van onsem @ https://tinyurl.com/2p9h3csu (so)
+-- https://tinyurl.com/2p9s9ets (quickcheck @ hackage)
+return []
+
+runTests :: IO Bool
+runTests = $quickCheckAll
+
+--------------------------------------------------------------------------------
+-- | test runner for GHCi usage.
+ghciQC :: IO ()
+ghciQC = ghciRunner runTests
+
 --------------------------------------------------------------------------------
