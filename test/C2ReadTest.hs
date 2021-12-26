@@ -621,6 +621,129 @@ prop_readExprTuple = forAll (genTuple :: Gen (Expr, Expr)) $
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
+-- | QuickCheck tests for `Tree1` read.
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `Tree1`.
+instance (Read a, Show a, Arbitrary a) => Arbitrary (Tree1 a) where
+  arbitrary = sized genTree1
+
+-- | helper functions for implementing arbitrary.
+-- | generator for `Tree1` type.
+-- liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+-- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+genTree1 :: forall a. (Read a, Show a, Arbitrary a) => Int -> Gen (Tree1 a)
+genTree1 0 = liftM Leaf1 (arbitrary :: Gen a)
+genTree1 n = frequency
+      [ (1, liftM Leaf1 (arbitrary :: Gen a))
+      , (4, liftM2 Branch1 (genTree1 (n `div` 2)) (genTree1 (n `div` 2)))
+      ]
+
+-- | valid `Tree1` property.
+prop_validTree1 :: Property
+prop_validTree1 = forAll (arbitrary :: Gen (Tree1 String)) $
+  \x -> classify (isValid x) "valid tree1" $
+        isValid x
+  where isValid :: Tree1 a -> Bool
+        isValid (Leaf1 _)     = True
+        isValid (Branch1 l r) = (isValid l) && (isValid r)
+
+-- | quickcheck property to test `Tree1` read.
+prop_readTree1 :: Property
+prop_readTree1 = forAll (arbitrary :: Gen (Tree1 String)) $
+  \x -> classify (isLeaf1 x) "Leaf1" $
+        classify (depthT1 x > 3) "depth > 3" $
+        classify (ldepthT1 x > 3) "left depth > 3" $
+        classify (rdepthT1 x > 3) "right depth > 3" $
+        checkRead readsPrec x
+
+-- | some helper functions.
+isLeaf1 :: Tree1 a -> Bool
+isLeaf1 (Leaf1 _) = True
+isLeaf1 _         = False
+
+depthT1 :: Tree1 a -> Int
+depthT1 (Leaf1 _)     = 1
+depthT1 (Branch1 l r) = 1 + max (depthT1 l) (depthT1 r)
+
+ldepthT1 :: Tree1 a -> Int
+ldepthT1 (Leaf1 _)      = 1
+ldepthT1 (Branch1 l _)  = 1 + ldepthT1 l
+
+rdepthT1 :: Tree1 a -> Int
+rdepthT1 (Leaf1 _)      = 1
+rdepthT1 (Branch1 _ r)  = 1 + rdepthT1 r
+
+-- | quickCheck property to test `Tree1` read for random non-Tree1 strings.
+prop_readNonTree1Str :: Property
+prop_readNonTree1Str = forAll (nonTree1 :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem str" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(Tree1 String, String)]) === []
+  where nonTree1 :: Gen String
+        nonTree1 = (arbitrary :: Gen String)
+                   `suchThat`
+                   (\x -> not ("<" `isInfixOf` x))
+
+-- | quickcheck property to test `Tree1` list read.
+prop_readTree1List :: Property
+prop_readTree1List = forAll (genList :: Gen [Tree1 Int]) $
+  \xs -> classify (xs==[]) "empty" $
+         classify (length xs == 1) "have 1 element" $
+         classify (length xs > 1) "have > 1 element" $
+         checkRead readsPrec xs
+
+-- | quickcheck property to test `Tree1` tuple read.
+prop_readTree1Tuple :: Property
+prop_readTree1Tuple = forAll (genTuple :: Gen (Tree1 String, Tree1 String)) $
+  \(x, y) -> classify (isLeaf1 x) "fst is Leaf1" $
+             classify (isLeaf1 y) "snd is Leaf1" $
+             classify (depthT1 x > 3) "fst depth > 3" $
+             classify (depthT1 y > 3) "snd depth > 3" $
+             checkRead readsPrec (x, y)
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | QuickCheck tests for `Time` read.
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `Time`.
+instance Arbitrary (Time) where
+  -- liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
+  arbitrary = frequency
+      [ (1, liftM2 Time (chooseInt (0, 0)) (chooseInt (0, 0)))
+      , (1, liftM2 Time (chooseInt (23, 23)) (chooseInt (59, 59)))
+      , (4, liftM2 Time (chooseInt (0, 23)) (chooseInt (0, 59)))
+      ]
+
+-- | valid `Time` property.
+prop_validTime :: Property
+prop_validTime = forAll (arbitrary :: Gen Time) $
+  \x -> classify (isValid x) "valid time" $
+        isValid x
+  where isValid :: Time -> Bool
+        isValid (Time h m) = (h >= 0 && h <= 23) && (m >= 0 && m <= 59)
+
+-- | quickcheck property to test `Time` read.
+prop_readTime :: Property
+prop_readTime = forAll (arbitrary :: Gen Time) $
+  \(Time h m) -> classify (h == 0 && m == 0)  "hour = 0, minute = 0" $
+                 classify (h == 23 && m == 59) "hour = 23, minute = 59" $
+                 checkRead readsPrec (Time h m)
+
+-- | quickCheck property to test `Time` read for random non-Time strings.
+prop_readNonTimeStr :: Property
+prop_readNonTimeStr = forAll (nonTime :: Gen String) $
+  \x -> classify (x == "") "empty string" $
+        classify (length x == 1) "1-elem str" $
+        classify (length x > 1) "> 1 elem string" $
+        (readsPrec 0 x :: [(Time, String)]) === []
+  where nonTime :: Gen String
+        nonTime = (arbitrary :: Gen String)
+                  `suchThat`
+                  (\x -> not (":" `isInfixOf` x))
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- | run `quickcheck` on all properties automatically.
 
 -- | test setup.
