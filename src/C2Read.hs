@@ -808,16 +808,17 @@ instance Read T where
           --  the 1st call, `mandatory` is never called; instead `optional` is 
           --  called, but you structure your `readsPrec` code in such a way that 
           --  recursive calls to `readsPrec` from `optional` uses a higher 
-          --  precedence, so that these recursive `readsPrec` calls with higher 
-          --  precedence force `readParen` to invoke `mandatory`, instead of 
+          --  precedence to force `readParen` to invoke `mandatory`, instead of 
           --  `optional`, in subsequent passes.  `mandatory` then parses any 
-          --  parentheses, as well as the nested structures enclosed.
+          --  parentheses, as well as nested structures enclosed.  you have to 
+          --  call `mandatory` after the first pass, otherwise you can not parse 
+          --  nested structures, which are typically enclosed in parentheses.
           --
           --  to do this, within `do`, we set `pr = op_prec + 1`, where 
           --  `op_prec` is the operator precedence, for `readsPrec` calls in `f` 
           --  & `g`, so that `readsPrec` calls in `f`, & `g`, invoked from 
           --  `optional`, will invoke `mandatory` in `readParen`. this step is 
-          --  also important to avoid infinite recursion. if you don't do this 
+          --  also important to avoid infinite recursion.  if you don't do this 
           --  step, then `readsPrec` calls in `f` & `g` will invoke `optional` 
           --  once again with the same argument & precedence, which will invoke 
           --  `optional` again, and so on ... and the calls will never end.
@@ -865,9 +866,9 @@ instance Read T where
           --  successful, the parse, before doing anything else, first needs to 
           --  "center" itself on the "root node" or the top node. doing so also 
           --  enables subsequent recursive calls to automatically center 
-          --  themselves on the root nodes of their nested structures they 
-          --  handle. this combination enables the entire parse to succeed. if 
-          --  you don't do this, the parse will be incomplete or return [].
+          --  themselves on the root nodes of the nested structures they handle. 
+          --  this combination enables the entire parse to succeed. if you don't 
+          --  do this, the parse will be incomplete or return [].
           --
           --  as you can see below, although there are 2 `:^:` operators in the 
           --  below structure, only one of them is the "root" or top node:
