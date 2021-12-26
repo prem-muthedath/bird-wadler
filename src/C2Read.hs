@@ -799,8 +799,8 @@ instance Read T where
           --  itself on the "root" node -- the outremost or top node.  this top 
           --  node may be a parenthesis (if, for example, the entire string is 
           --  within parentheses) or an operator. `showsPrec` usually inserts 
-          --  parentheses to make the top node clear. so centering the parse on 
-          --  the top node is key; if nnt, you will get a bad parse.
+          --  parentheses to make the top node clear. anyway, the parse should 
+          --  be centered on the top node; if nnt, you will get a bad parse.
           --
           --  to center the parse on the top node, one sure way is to force 
           --  `readParen` to call `optional` in the very first pass. to do this, 
@@ -810,8 +810,8 @@ instance Read T where
           --  recursive calls to `readsPrec` from `optional` uses a higher 
           --  precedence, so that these recursive `readsPrec` calls with higher 
           --  precedence force `readParen` to invoke `mandatory`, instead of 
-          --  `optional`.  `mandatory` then parses any parentheses, as well as 
-          --  the nested structures enclosed.
+          --  `optional`, in subsequent passes.  `mandatory` then parses any 
+          --  parentheses, as well as the nested structures enclosed.
           --
           --  to do this, within `do`, we set `pr = op_prec + 1`, where 
           --  `op_prec` is the operator precedence, for `readsPrec` calls in `f` 
@@ -866,8 +866,8 @@ instance Read T where
           --  "center" itself on the "root node" or the top node. doing so also 
           --  enables subsequent recursive calls to automatically center 
           --  themselves on the root nodes of their nested structures they 
-          --  handle. this combination enables the entire parse succeed. if you 
-          --  don't do this, though, the parse will be incomplete or return [].
+          --  handle. this combination enables the entire parse to succeed. if 
+          --  you don't do this, the parse will be incomplete or return [].
           --
           --  as you can see below, although there are 2 `:^:` operators in the 
           --  below structure, only one of them is the "root" or top node:
@@ -1237,10 +1237,10 @@ instance (Read a) => Read (Tree1 a) where
           --
           -- on the other hand, calling `optional` in `readAngle` first will 
           -- always work, whether or not you have brackets. suppose, instead of 
-          -- parsing brackets first, `readsPPrec d` called `readAngle` first 
-          -- with something like `(d > 0)`, with `d` = 0, `readAngle` will then 
-          -- call `optional` first, instead of `mandatory`, but the parse would 
-          -- still succeed, because `optional` always calls `mandatory` (see `++ 
+          -- parsing brackets first, `readsPrec d` called `readAngle` first with 
+          -- something like `(d > 0)`, with `d` = 0, `readAngle` will then call 
+          -- `optional` first, instead of `mandatory`, but the parse would still 
+          -- succeed, because `optional` always calls `mandatory` (see `++ 
           -- mandatory` in `optional` code) to parse any "optional" brackets 
           -- (outermost brackets are "optional").
           --
@@ -1321,7 +1321,7 @@ instance Read Time where
   readsPrec _ r =
     [ (newTime h m, t) |    -- while reading, make sure we have a valid `Time`.
       -- NOTE: this parse does not allow spaces before ':', such as "10  :15".
-      -- to allow spaces, rewrite to use `lex'` defined earlier to parse ':'.
+      -- to allow spaces, rewrite using `lex'` defined earlier to parse ':'.
       (h, ':':s)  :: (Int, String)  <- readsPrec 11 r
     , (m, t)      :: (Int, String)  <- readsPrec 11 s
     ]
