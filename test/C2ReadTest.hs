@@ -8,7 +8,7 @@
 --  1. `cd` to `bird-wadler`, this package's top-level directory.
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. at GHCi prompt, enter `import C2ReadTest`.
---  4. you can then invoke `ghciQC` to run all quickcheck tests.
+--  4. you can then invoke `C2ReadTest.ghciQC` to run all quickcheck tests.
 
 -- NOTE: for old manual tests, see ../notes/chap2-Read-manual-tests.lhs
 --------------------------------------------------------------------------------

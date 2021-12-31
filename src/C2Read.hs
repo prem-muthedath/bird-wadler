@@ -7,8 +7,10 @@
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. next, at GHCi prompt, enter `import C2Read`.
 --  4. you can then invoke any of the top-elevel functions.
---  5. OR instead of steps 3 & 4, at GHCi prompt, enter `import C2ReadTest`, & 
---     then you can invoke `ghciQC` to run all quickcheck tests.
+--  5. OR instead of step 2,
+--      a) run `cabal v2-repl :bird-wadler-test` to start GHCi;
+--      b) at GHCi prompt, enter `import C2ReadTest`;
+--      c) invoke `C2ReadTest.ghciQC` to run all quickcheck tests.
 -- author: Prem Muthedath, NOV 2021.
 
 --------------------------------------------------------------------------------
@@ -1232,7 +1234,7 @@ instance (Read a) => Read (Tree1 a) where
           -- NOTE: by passing `True` to `readAngle`, we force it to call 
           -- `mandatory` to parse the brackets first. this works fine here 
           -- because brackets form the outermost lexeme, the "top" nodes, as 
-          -- `showsPrec` encloses everthing in brackets. if brackets didn't 
+          -- `showsPrec` encloses everything in brackets. if brackets didn't 
           -- enclose everything, calling `mandatory` first woould yield an 
           -- incomplete parse.
           --
