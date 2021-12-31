@@ -5,9 +5,9 @@
 -- author: Prem Muthedath, DEC 2021.
 -- usage:
 --  1. `cd` to `bird-wadler`, this package's top-level directory.
---  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
+--  2. on commandline, run `cabal v2-repl :bird-wadler-test` to start GHCi.
 --  3. at GHCi prompt, enter `import C2BoolTest`.
---  4. you can then invoke `ghciQC` to run all quickcheck tests.
+--  4. you can then invoke `C2BoolTest.ghciQC` to run all quickcheck tests.
 
 --------------------------------------------------------------------------------
 module C2BoolTest where
@@ -24,29 +24,42 @@ import Common (ghciRunner)
 -- | property to test equivalence of of `leap` & `leap'` functions.
 prop_leap_equiv :: Property
 prop_leap_equiv = forAll (chooseInt (1, 3000)) $
-  \x -> lClassifys x $
+  \x -> leap_classifys x $
         leap x === leap' x
 
+-- | check if leap year generator is valid.
+prop_validLeap :: Property
+prop_validLeap = forAll genLeap $
+  \x -> leap_classifys x $
+        (x `mod` 4 === 0 .&&. x `mod` 100 =/= 0) .||.
+        (x `mod` 100 === 0 .&&. x `mod` 400 === 0)
+
+-- | check if non-leap year generator is valid.
+prop_validNonLeap :: Property
+prop_validNonLeap = forAll (genYear notLeap) $
+  \x -> leap_classifys x $
+        (x `mod` 4 =/= 0) .||. (x `mod` 100 =/= 0  .||.  x `mod` 400 =/= 0)
+
 -- | property to test a leap year.
-prop_lyear :: Property
-prop_lyear = forAll genLeap $
-                \x -> lClassifys x $
-                      leap' x === True
+prop_leap :: Property
+prop_leap = forAll genLeap $
+              \x -> leap_classifys x $
+                    leap' x === True
 
 -- | property to test a non-leap year.
-prop_year :: Property
-prop_year = forAll (genYear notLeap) $
-                \x -> lClassifys x $
-                      leap' x === False
+prop_non_leap :: Property
+prop_non_leap = forAll (genYear notLeap) $
+                  \x -> leap_classifys x $
+                        leap' x === False
 
 -- | classification of property used in leap year testing.
-lClassifys :: (Testable prop) => Int -> prop -> Property
-lClassifys x = classify (x <= 100) "<= 100" .
-               classify (x > 100 && x <= 1000) "100 - 1000" .
-               classify (x > 1000 && x <= 2000) "1000 - 2000" .
-               classify (x > 2000 && x <= 3000) "2000 - 3000" .
-               classify (x `mod` 100 == 0) "has 00" .
-               classify (x `mod` 100 /= 0) "has no 00"
+leap_classifys :: (Testable prop) => Int -> prop -> Property
+leap_classifys x = classify (x <= 100) "<= 100" .
+                   classify (x > 100 && x <= 1000) "100 - 1000" .
+                   classify (x > 1000 && x <= 2000) "1000 - 2000" .
+                   classify (x > 2000 && x <= 3000) "2000 - 3000" .
+                   classify (x `mod` 100 == 0) "has 00" .
+                   classify (x `mod` 100 /= 0) "has no 00"
 
 -- | generate a leap year.
 genLeap :: Gen Int
@@ -72,17 +85,43 @@ notLeap x = (not (leap100 x)) && (not (leap4 x))
 --------------------------------------------------------------------------------
 -- | quickcheck testing -- triangle stuff
 --------------------------------------------------------------------------------
+-- | `Triangle` data type.
+data Triangle = Equilateral
+                | Isoceles
+                | Scalene
+                | Good   -- 3 sides form a triangle.
+                | Bad    -- 3 sides do NOT form a triangle.
+                | Mix    -- may be good, may be bad; but NOT all sides same.
+                deriving (Show, Eq, Enum)
+--------------------------------------------------------------------------------
+-- | `Arbitrary` instance for `Triangle`.
+instance Arbitrary (Triangle) where
+  arbitrary = elements [toEnum 0 :: Triangle ..]
+--------------------------------------------------------------------------------
+-- | check if `Triangle` generator is valid.
+prop_validTriangle :: Property
+prop_validTriangle = forAll (arbitrary :: Gen Triangle) $
+  \x -> x `elem` [toEnum 0 :: Triangle .. ]
+--------------------------------------------------------------------------------
+-- | check if lists generated are sorted, have right size, and elems are > 0.
+prop_trian_validList :: Property
+prop_trian_validList = forAll (assorted :: Gen [Int]) $
+                          \xs -> classifys xs $
+                                 (sort xs === xs) .&&.
+                                 (length xs === 3) .&&.
+                                 (all (> 0) xs)
+--------------------------------------------------------------------------------
 -- | for random valid inputs, check if outputs are valid.
-prop_trian_valid :: Property
-prop_trian_valid = forAll assorted $
+prop_trian_assorted :: Property
+prop_trian_assorted = forAll assorted $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  (analyze a b c) `elem` [0 .. 3]
 --------------------------------------------------------------------------------
 -- | for random valid inputs, outputs remain same even when inputs are doubled.
-prop_trian_double_equiv :: Property
-prop_trian_double_equiv = forAll assorted $
+prop_trian_double :: Property
+prop_trian_double = forAll assorted $
   \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c == analyze (2*a) (2*b) (2*c)
+                 analyze a b c === analyze (2*a) (2*b) (2*c)
 --------------------------------------------------------------------------------
 -- | property to test outputs for equilateral triangle.
 prop_trian_equi :: Property
@@ -92,77 +131,94 @@ prop_trian_equi = forAll same $
 --------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
 prop_trian_bad :: Property
-prop_trian_bad = forAll bad $
+prop_trian_bad = forAll (genList Bad) $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 0
-  where -- | generate random list of 3-elems that do not form sides of a triangle.
-        bad :: Gen [Int]
-        bad = genList
-                (\(x:y:z:[]) -> (getPositive x + getPositive y <= getPositive z))
-                False
 --------------------------------------------------------------------------------
 -- | property to test outputs for isoceles triangle.
 prop_trian_iso :: Property
-prop_trian_iso = forAll iso $
+prop_trian_iso = forAll (genList Isoceles) $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 2
-  where -- | generate random list of 3-elems that form an isoceles triangle.
-        iso :: Gen [Int]
-        iso = genList
-                ((\(x:y:z:[]) -> (x /= z) && ((x == y) || (y == z))))
-                True
 --------------------------------------------------------------------------------
 -- | property to test outputs for scalene triangle.
 prop_trian_scal :: Property
-prop_trian_scal = forAll scal $
+prop_trian_scal = forAll (genList Scalene) $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 3
-  where -- | generate random list of 3-elems that form a scalene triangle.
-        scal :: Gen [Int]
-        scal = genList (\(x:y:z:[]) -> (x < y) && (y < z)) True
 --------------------------------------------------------------------------------
 -- | helper functions.
 
--- | generate random 3-elem, ordered list; some generated lists may have all 
--- elements identical, while others not.
+-- | generate random 3-elem ordered list; all elements are +ve integers.
+-- some lists may represent sides of a real triangle, while others not.
 assorted :: Gen [Int]
-assorted = frequency [(1, same), (4, diff)]
+assorted = do
+  triangle :: Triangle <- (arbitrary :: Gen Triangle)
+  genList triangle
 
--- | generate random list (3-elem) that have all elements same.
+-- | generate random list (3-elem, +ve ints) that has identical elements.
+-- NOTE: random sampling rarely comes up with a list of identical elements. if 
+-- you want one, you have to sample for a while, so generation of such lists is 
+-- very slow. this code, on the other hand, generates such lists very quickly.
 same :: Gen [Int]
 same = do
   x :: Int <- chooseInt (1, 1000)
   return $ replicate 3 x
 
--- | generate random list (3-elem, ordered) that do not have all elems same.
-diff :: Gen [Int]
-diff = genList (\(x:_:z:[]) -> x /= z) False
+-- | generate 3-elem, sorted, random list whose elements satisfy the property 
+-- associated with the supplied `Triangle`. list elements are all +ve integers.
+genList :: Triangle -> Gen [Int]
+-- NOTE: for `Equilateral`, because random sampling to get a list of identical 
+-- elements is a rare event, it takes a while to generate an `Equilateral` 
+-- triangle like the way other triangles are generated.  so we call `same`, 
+-- which uses a different algorithm to generate an `Equilateral` triangle.
+genList Equilateral = same
+genList triangle    = listOf3 `suchThat` f
+  where f :: ([Int] -> Bool)
+        f | triangle `elem` [Mix, Bad] = g
+          | otherwise                  = \x -> g x && h x
+        g :: ([Int] -> Bool)
+        g = property' triangle
+        h :: ([Int] -> Bool)
+        h = property' Good
+        -- | sorted random list of 3 elements. all elements are +ve integers.
+        listOf3 :: Gen [Int]
+        listOf3 = do
+            xs :: [Positive Int] <- sort <$> vectorOf 3 (arbitrary :: Gen (Positive Int))
+            return $ map getPositive xs
 
--- | generate a random 3-elem, ordered +ve `Int` list.
--- `f` acts as a filter to determine what alements can be included.
--- `bool = True` ensures `x + y < z` in the generated list `[x, y, z]`.
-genList :: ([Positive Int] -> Bool) -> Bool -> Gen [Int]
-genList f bool = do
-  list :: [Positive Int] <- genList'
-  return $ map getPositive list
-  where genList' :: Gen [Positive Int]
-        genList' = listOf3 `suchThat` h
-        h :: [Positive Int] -> Bool
-        h xs = case bool of
-          True  -> (f xs) && (g xs)
-          False -> f xs
-        g :: [Positive Int] -> Bool
-        g (x:y:z:[]) = (getPositive x + getPositive y > getPositive z)
-        g _          = error "not a 3 elem list"
-        listOf3 :: Gen [Positive Int]
-        listOf3 = sort <$> vectorOf 3 (arbitrary :: Gen (Positive Int))
+-- return property (a lambda) associated with supplied `Triangle`.
+-- NOTE: in case of valid triangles other than `Good`, the returned property 
+-- does NOT include the basic check of whether or not something is a triangle.  
+-- if you need to generate a valid triangle, use `genList` given above.
+-- NOTE: the properties (i.e., lamdas) ASSUME that the `list` is SORTED.
+property' :: Triangle -> ([Int] -> Bool)
+-- we define somewhat complex & ingenious triangle properties, because we do not 
+-- want to replicate the source code here, and in that way duplicate bugs!
+property' Equilateral = \xs@(x:_:_:[]) -> sum xs == 3 * x
+property' Isoceles    = \xs@(x:y:z:[]) ->
+                          (sum xs /= 3 * x) &&
+                          ((sum xs == 2 * y + z) ||
+                           (sum xs == x + 2 * y))
+property' Scalene     = \xs@(x:y:z:[]) ->
+                          (sum xs > 2 * x + z) &&
+                          (sum xs < 2 * y + z) &&
+                          (sum xs > x + 2 * y) &&
+                          (sum xs < 3 * z)
+property' Good        = \(x:y:z:[]) -> x + y > z
+property' Bad         = \(x:y:z:[]) -> x + y <= z
+property' Mix         = \(x:_:z:[]) -> x /= z
 
 -- | classifications for a property used in testing triangle construction.
 classifys :: (Testable prop) => [Int] -> prop -> Property
-classifys xs@(a:b:c:[]) = classify (length xs == 3) "3-elem list input" .
-                          classify (a + b <= c) "bad" .
-                          classify (a + b > c) "triangle" .
-                          classify (a == c) "equilateral"
+classifys xs@(_:_:_:[]) = classify (length xs == 3) "3-elem list input" .
+                          classify (property' Bad $ xs)  "bad" .
+                          if (property' Good $ xs)
+                            then classify (property' Good $ xs) "triangle" .
+                                 classify (property' Equilateral $ xs) "equilateral" .
+                                 classify (property' Isoceles $ xs) "isoceles" .
+                                 classify (property' Scalene $ xs) "scalene"
+                            else classify (property' Good $ xs) "triangle"
 classifys _             = error "need exactly a 3-element list."
 
 --------------------------------------------------------------------------------

@@ -3,12 +3,14 @@
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- boolean data type: examples.
 -- usage:
---  1. `cd` to `bird-wadler` directory, this package's top-level directory.
+--  1. `cd` to `bird-wadler`, this package's top-level directory.
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. next, at GHCi prompt, enter `import C2Bool`.
 --  4. you can then invoke `leap` & `analyze` functions.
---  5. OR instead of steps 3 & 4, at GHCi prompt, enter `import C2BoolTest`, & 
---     then you can invoke `runAllQC` to run all quickcheck tests.
+--  5. OR instead of step 2,
+--      a) run `cabal v2-repl :bird-wadler-test` to start GHCi;
+--      b) at GHCi prompt, enter `import C2BoolTest`;
+--      c) invoke `C2BoolTest.ghciQC` to run all quickcheck tests.
 -- author: Prem Muthedath, 19 OCT 2021.
 
 --------------------------------------------------------------------------------
