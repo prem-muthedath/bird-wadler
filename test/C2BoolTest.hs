@@ -116,8 +116,8 @@ instance Arbitrary (Triangle) where
 --------------------------------------------------------------------------------
 -- | `Sides` data type: represents sides of a triangle, good or bad.
 -- `Sides x y z` represents sides `x`, `y`, `z` of a triangle in order, where 
--- all sides are + integers > 0, and x <= y <= z.
--- NOTE: this definition does NOT enforce the triangle criterion, `x + y < z`.
+-- all sides are integers > 0, and x <= y <= z.
+-- NOTE: this definition does NOT enforce the triangle criterion, `x + y > z`.
 data Sides = Sides Int Int Int deriving (Eq, Show)
 --------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Sides`.
