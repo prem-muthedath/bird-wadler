@@ -38,6 +38,7 @@ prop_validLeap = forAll genLeap $
 prop_validNonLeap :: Property
 prop_validNonLeap = forAll (genYear notLeap) $
   \x -> leap_classifys x $
+        -- some non-leap years generated may be divisible by 4!
         (x `mod` 4 =/= 0) .||. (x `mod` 100 =/= 0  .||.  x `mod` 400 =/= 0)
 
 -- | property to test a leap year.
@@ -70,8 +71,10 @@ leap_classifys x = classify (x <= 100) "<= 100" .
                    classify (x > 100 && x <= 1000) "100 - 1000" .
                    classify (x > 1000 && x <= 2000) "1000 - 2000" .
                    classify (x > 2000 && x <= 3000) "2000 - 3000" .
+                   classify (x `mod` 4 == 0) "divisible by 4" .
+                   classify (x `mod` 100 /= 0) "has no 00" .
                    classify (x `mod` 100 == 0) "has 00" .
-                   classify (x `mod` 100 /= 0) "has no 00"
+                   classify (x `mod` 400 == 0) "divisible by 400"
 
 -- | generate a leap year.
 genLeap :: Gen Int
