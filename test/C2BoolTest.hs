@@ -12,6 +12,8 @@
 --------------------------------------------------------------------------------
 module C2BoolTest where
 --------------------------------------------------------------------------------
+-- Test.QuickCheck @ https://tinyurl.com/2p9s9ets
+-- Data.List @ https://tinyurl.com/ycxb9uaw
 import Test.QuickCheck
 import Data.List (sort)
 

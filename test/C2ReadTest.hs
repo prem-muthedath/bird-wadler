@@ -14,6 +14,10 @@
 --------------------------------------------------------------------------------
 module C2ReadTest where
 --------------------------------------------------------------------------------
+-- Test.QuickCheck @ https://tinyurl.com/2p9s9ets
+-- Control.Monad @ https://tinyurl.com/mtvj95yx
+-- Data.List @ https://tinyurl.com/ycxb9uaw
+-- Data.Char @ https://tinyurl.com/2c72x8ya
 import Test.QuickCheck
 import Control.Monad (liftM, liftM2)
 import Data.List (isInfixOf)

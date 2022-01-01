@@ -6,6 +6,7 @@
 
 --------------------------------------------------------------------------------
 module C2Lex where
+--------------------------------------------------------------------------------
 -- Data.Char @ https://tinyurl.com/2c72x8ya
 -- Numeric @ https://tinyurl.com/yckpd53t
 import Data.Char (lexLitChar, isSpace, isDigit, isAlpha, isAlphaNum)
@@ -28,6 +29,9 @@ lex' ('\'':s)   =  [('\'':ch++"'", t) | (ch,'\'':t)  <- lexLitChar s,
 lex' ('"':s)    =  [('"':str, t) | (str,t) <- lexString s]
 lex' (c:s)
   | isSingle c  = [([c],s)]
+  -- span :: (a -> Bool) -> [a] -> ([a], [a])
+  -- span (\x -> x > 2) [1 :: Int, 2, 3, 4] = ([],[1,2,3,4])
+  -- span (\x -> x <= 2) [1 :: Int, 2, 3, 4] = ([1, 2],[3,4])
   | isSym c     = [(c:sym,t) | (sym,t) <- [span isSym s]]
   | isAlpha c   = [(c:nam,t) | (nam,t) <- [span isIdChar s]]
   | isDigit c   = [(c:ds++fe,t) | (ds,s1) <- [span isDigit s],
@@ -45,7 +49,9 @@ lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
                                           (str,u) <- lexString t ]
 -- | parse a string item.
 -- `lexLitChar` reads a character as a string, using haskell escape conventions.
+-- `lexLitChar :: ReadS String`
 -- `lexLitChar  "\\nHello"  =  [("\\n", "Hello")]`
+-- `lexLitChar "prem" = ("p", "rem")`
 -- `lexLitChar` removes any nullables "\\&" present.
 -- see `lexLitChar` in Data.Char @ https://tinyurl.com/2c72x8ya
 lexStrItem              :: ReadS String
@@ -56,7 +62,7 @@ lexStrItem a            = lexLitChar a
 
 --------------------------------------------------------------------------------
 -- | is the character a member of "special" characters in haskell?
--- see https://tinyurl.com/yc8y5tfs 
+-- see https://tinyurl.com/yc8y5tfs
 isSingle    :: Char -> Bool
 isSingle c  =  c `elem` ",;()[]{}_‘"
 
@@ -80,7 +86,7 @@ isIdChar c  =  isAlphaNum c || c `elem` "_'"
 -- sample inputs, outputs:
 --    1. ".123e+10"  ->  [(".123e+10","")]
 --    2. ".123E10"   ->  [(".123E10","")]
---    3. ".123+10""  ->  [(".123","+10")]  -- BAD EXPONENT!
+--    3. ".123+10"   ->  [(".123","+10")]  -- BAD EXPONENT!
 --    4. "123e+10"   ->  [("","123e+10")]  -- BAD: NO DECIMAL OR EXP @ START!
 --    5. ".123"      ->  [(".123","")]
 --    6. "E-10"      ->  [("E-10","")]
@@ -89,6 +95,9 @@ isIdChar c  =  isAlphaNum c || c `elem` "_'"
 --    9. ""          ->  [("", "")]
 --    10. "12.3e+10" ->  [("","12.3e+10")] -- BAD: NO DECIMAL OR EXP @ START!
 -- `lexDigits` is defined in `Numeric` module: https://tinyurl.com/yckpd53t
+-- `lexDigits :: ReadS String`
+-- `lexDigits "123pr" = [("123","pr")]`
+-- `lexDigits "pr656" = []`
 lexFracExp    :: ReadS String
 lexFracExp ('.':c:cs) | isDigit c
               = [('.':ds++e,u) | (ds,t) <- lexDigits (c:cs),
