@@ -123,17 +123,17 @@ prop_trian_double = forAll assorted $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === analyze (2*a) (2*b) (2*c)
 --------------------------------------------------------------------------------
--- | property to test outputs for equilateral triangle.
-prop_trian_equi :: Property
-prop_trian_equi = forAll same $
-  \(a:b:c:[]) -> classifys [a, b, c] $
-                 analyze a b c === 1
---------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
 prop_trian_bad :: Property
 prop_trian_bad = forAll (genList Bad) $
   \(a:b:c:[]) -> classifys [a, b, c] $
                  analyze a b c === 0
+--------------------------------------------------------------------------------
+-- | property to test outputs for equilateral triangle.
+prop_trian_equi :: Property
+prop_trian_equi = forAll (genList Equilateral) $
+  \(a:b:c:[]) -> classifys [a, b, c] $
+                 analyze a b c === 1
 --------------------------------------------------------------------------------
 -- | property to test outputs for isoceles triangle.
 prop_trian_iso :: Property
@@ -156,23 +156,14 @@ assorted = do
   triangle :: Triangle <- (arbitrary :: Gen Triangle)
   genList triangle
 
--- | generate random list (3-elem, +ve ints) that has identical elements.
--- NOTE: random sampling rarely comes up with a list of identical elements. if 
--- you want one, you have to sample for a while, so generation of such lists is 
--- very slow. this code, on the other hand, generates such lists very quickly.
-same :: Gen [Int]
-same = do
-  x :: Int <- chooseInt (1, 1000)
-  return $ replicate 3 x
-
 -- | generate 3-elem, sorted, random list whose elements satisfy the property 
 -- associated with the supplied `Triangle`. list elements are all +ve integers.
 genList :: Triangle -> Gen [Int]
--- NOTE: for `Equilateral`, because random sampling to get a list of identical 
--- elements is a rare event, it takes a while to generate an `Equilateral` 
--- triangle like the way other triangles are generated.  so we call `same`, 
--- which uses a different algorithm to generate an `Equilateral` triangle.
-genList Equilateral = same
+-- NOTE: for `Equilateral`, because getting a list of identical elements through 
+-- random sampling is a rare event, it takes a while to generate an 
+-- `Equilateral` triangle like the way other triangles are generated. so we use 
+-- a different algorithm to generate an `Equilateral` triangle.
+genList Equilateral = (replicate 3) <$> chooseInt (1, 1000)
 genList triangle    = listOf3 `suchThat` f
   where f :: ([Int] -> Bool)
         f | triangle `elem` [Mix, Bad] = g
