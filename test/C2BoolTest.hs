@@ -59,7 +59,8 @@ prop_leap_equiv = forAll (chooseInt (1, 3000)) $
 prop_validLeap :: Property
 prop_validLeap = forAll genLeap $
   \x -> leap_classifys x $
-        -- x `mod` 4 === 0 works because we have no 100 multiples in genLeap4.
+        -- x `mod` 4 === 0 works because `genLeap4` has no 100 multiples; else, 
+        -- we would need '(x `mod` 100 =/= 0 .&&. x `mod` 4 === 0)' instead.
         x `mod` 400 === 0 .||. x `mod` 4 === 0
 
 -- | check if non-leap year generator is valid.
@@ -127,7 +128,8 @@ instance Arbitrary (Triangle) where
 -- `Sides x y z` represents sides `x`, `y`, `z` of a triangle in order, where 
 -- all sides are integers > 0, and x <= y <= z.
 -- NOTE: this definition does NOT enforce the triangle criterion, `x + y > z`.
-data Sides = Sides Int Int Int deriving (Eq, Show)
+type X = Int; type Y = Int; type Z = Int
+data Sides = Sides X Y Z deriving (Eq, Show)
 --------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Sides`.
 instance Arbitrary Sides where
@@ -202,7 +204,7 @@ genSides :: Triangle -> Gen Sides
 -- NOTE: because generating `Sides` having all identical values through random 
 -- sampling is a rare event, it takes a while to generate sides of an 
 -- `Equilateral` triangle like the way it is done for other triangles. so we use 
--- a different algorithm for an `Equilateral` triangle.
+-- a different algorithm for `Equilateral` triangle.
 genSides Equilateral = do
         x <- chooseInt (1, 1000)
         return $ Sides x x x
