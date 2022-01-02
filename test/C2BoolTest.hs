@@ -23,6 +23,32 @@ import Common (ghciRunner)
 --------------------------------------------------------------------------------
 -- | quickcheck testing -- leap year stuff.
 --------------------------------------------------------------------------------
+-- | leap -- generators.
+--------------------------------------------------------------------------------
+-- | generate leap year that is not a multiple of 100.
+genLeap4 :: Gen Int
+genLeap4 = elements [ 4*x | x <- [1 .. 1000], 4*x `mod` 100 /= 0 ]
+
+-- | generate leap year that is a multiple of 100.
+genLeap400 :: Gen Int
+genLeap400 = elements [ 400*x | x <- [1 .. 1000] ]
+
+-- | generate a leap years that include multiples & not-multiples of 100.
+genLeap :: Gen Int
+genLeap = frequency
+  [ (1, genLeap4)
+  , (1, genLeap400)
+  ]
+
+-- | generate a non-leap year.
+genNonLeap :: Gen Int
+genNonLeap = do
+  let a = [ x | x <- [100, 200 .. 3000], x `mod` 400 /= 0 ]
+      b = [ y | y <- [1 .. 3000], y `mod` 4 /= 0 ]
+  elements (a ++ b)
+--------------------------------------------------------------------------------
+-- | leap -- properties
+--------------------------------------------------------------------------------
 -- | property to test equivalence of of `leap` & `leap'` functions.
 prop_leap_equiv :: Property
 prop_leap_equiv = forAll (chooseInt (1, 3000)) $
@@ -33,15 +59,16 @@ prop_leap_equiv = forAll (chooseInt (1, 3000)) $
 prop_validLeap :: Property
 prop_validLeap = forAll genLeap $
   \x -> leap_classifys x $
-        (x `mod` 4 === 0 .&&. x `mod` 100 =/= 0) .||.
-        (x `mod` 100 === 0 .&&. x `mod` 400 === 0)
+        -- x `mod` 4 === 0 works because we have no 100 multiples in genLeap4.
+        x `mod` 400 === 0 .||. x `mod` 4 === 0
 
 -- | check if non-leap year generator is valid.
 prop_validNonLeap :: Property
-prop_validNonLeap = forAll (genYear notLeap) $
+prop_validNonLeap = forAll genNonLeap $
   \x -> leap_classifys x $
-        -- some non-leap years generated may be divisible by 4!
-        (x `mod` 4 =/= 0) .||. (x `mod` 100 =/= 0  .||.  x `mod` 400 =/= 0)
+        -- some non-leap years, say 100, generated may be divisible by 4!
+        -- 100 `mod` 4 = 0, but 100 `mod` 400 /= 0, so 100 is a non-leap year.
+        x `mod` 4 =/= 0 .||. x `mod` 400 =/= 0
 
 -- | property to test a leap year.
 prop_leap :: Property
@@ -49,24 +76,24 @@ prop_leap = forAll genLeap $
               \x -> leap_classifys x $
                     leap' x === True
 
--- | property to test a leap year not divisible by 100.
-prop_leap4 :: Property
-prop_leap4 = forAll leap4'  $
-              \x -> leap_classifys x $
-                    leap' x === leap' (x + 4)
-  where leap4' :: Gen Int
-        leap4' = do
-          y :: Int <- genYear leap4   -- NOTE: y `mod` 100 /= 0
+-- | property to test leap year extension.
+prop_leap_extension :: Property
+prop_leap_extension = forAll extendableLeap $
+                        \x -> leap_classifys x $
+                              leap' x === leap' (x + 4)
+  where extendableLeap :: Gen Int
+        extendableLeap = do
+          y :: Int <- genLeap
           if (y + 4) `mod` 100 == 0
              then return $ y - 4
              else return y
 
 -- | property to test a non-leap year.
 prop_non_leap :: Property
-prop_non_leap = forAll (genYear notLeap) $
+prop_non_leap = forAll genNonLeap $
                   \x -> leap_classifys x $
                         leap' x === False
-
+--------------------------------------------------------------------------------
 -- | classification of property used in leap year testing.
 leap_classifys :: (Testable prop) => Int -> prop -> Property
 leap_classifys x = classify (x <= 100) "<= 100" .
@@ -77,26 +104,6 @@ leap_classifys x = classify (x <= 100) "<= 100" .
                    classify (x `mod` 100 /= 0) "has no 00" .
                    classify (x `mod` 100 == 0) "has 00" .
                    classify (x `mod` 400 == 0) "divisible by 400"
-
--- | generate a leap year.
-genLeap :: Gen Int
-genLeap = frequency [(3, (genYear leap4)), (4, (genYear leap100))]
-
--- | generate a year that satifies the predicate.
-genYear :: (Int -> Bool) -> Gen Int
-genYear f = (chooseInt (1, 3000)) `suchThat` f
-
--- | `True` for a leap year divisible by both 100 & 400.
-leap100 :: Int -> Bool
-leap100 x = (x `mod` 100 == 0) && (x `mod` 400 == 0)
-
--- | `True` for a leap year divisible only by 4.
-leap4 :: Int -> Bool
-leap4 x = (x `mod` 4 == 0) && (x `mod` 100 /= 0)
-
--- | `True` if not a leap year.
-notLeap :: Int -> Bool
-notLeap x = (not (leap100 x)) && (not (leap4 x))
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
@@ -183,7 +190,7 @@ prop_trian_scal = forAll (genSides Scalene) $
                       analyze a b c === 3
 --------------------------------------------------------------------------------
 -- | helper functions.
-
+--------------------------------------------------------------------------------
 -- | generate sides for a random `Triangle`, good or bad.
 assorted :: Gen Sides
 assorted = do

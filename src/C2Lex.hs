@@ -44,7 +44,7 @@ lex' (c:s)
 -- returned; for example, `lexString "prem\"toss" = [("prem\"", "toss")]`.
 -- returns [] for any string supplied to it that does not have an `"`.
 lexString               :: ReadS String
-lexString ('"':s)       = [("\"",s)]      -- recurrence teminal condition
+lexString ('"':s)       = [("\"",s)]      -- recurrence terminal condition
 lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
                                           (str,u) <- lexString t ]
 -- | parse a string item.
