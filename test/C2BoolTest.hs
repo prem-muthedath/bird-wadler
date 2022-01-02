@@ -33,7 +33,7 @@ genLeap4 = elements [ 4*x | x <- [1 .. 1000], 4*x `mod` 100 /= 0 ]
 genLeap400 :: Gen Int
 genLeap400 = elements [ 400*x | x <- [1 .. 1000] ]
 
--- | generate a leap years that include multiples & not-multiples of 100.
+-- | generate leap years that include multiples & non-multiples of 100.
 genLeap :: Gen Int
 genLeap = frequency
   [ (1, genLeap4)
@@ -199,7 +199,7 @@ assorted = do
 
 -- | generate sides for a `Triangle`.
 genSides :: Triangle -> Gen Sides
--- NOTE: because generating `Sides` that has all identical values through random 
+-- NOTE: because generating `Sides` having all identical values through random 
 -- sampling is a rare event, it takes a while to generate sides of an 
 -- `Equilateral` triangle like the way it is done for other triangles. so we use 
 -- a different algorithm for an `Equilateral` triangle.
