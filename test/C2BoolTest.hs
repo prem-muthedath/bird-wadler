@@ -218,7 +218,7 @@ genSides triangle    = (arbitrary :: Gen Sides) `suchThat` f
         h = property' Good
 
 -- return property (a lambda) associated with a given `Triangle`.
--- `property'`represents rules the sides of a given `Triangle` must obey.
+-- `property'` represents rules the sides of a given `Triangle` must obey.
 -- NOTE: in case of valid triangles other than `Good`, the returned property 
 -- does NOT include the basic check of whether or not something is a triangle.  
 -- if you need to generate a valid triangle, use `genSides` given above.
