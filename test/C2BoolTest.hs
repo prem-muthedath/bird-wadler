@@ -56,7 +56,7 @@ genYears = frequency
 --------------------------------------------------------------------------------
 -- | leap -- properties
 --------------------------------------------------------------------------------
--- | property to test equivalence of of `leap` & `leap'` functions.
+-- | property to test equivalence of `leap` & `leap'` functions.
 prop_leap_equiv :: Property
 prop_leap_equiv = forAll genYears $
   \x -> leap_classifys x $
