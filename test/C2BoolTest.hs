@@ -44,14 +44,21 @@ genLeap = frequency
 genNonLeap :: Gen Int
 genNonLeap = do
   let a = [ x | x <- [100, 200 .. 3000], x `mod` 400 /= 0 ]
-      b = [ y | y <- [1 .. 3000], y `mod` 4 /= 0 ]
+      b = [ y | y <- [1 .. 100], y `mod` 4 /= 0 ]
   elements $ (a ++) . (b ++) $ []
+
+-- | generate years, a mix of leap & non-leap.
+genYears :: Gen Int
+genYears = frequency
+  [ (1, genLeap)
+  , (1, genNonLeap)
+  ]
 --------------------------------------------------------------------------------
 -- | leap -- properties
 --------------------------------------------------------------------------------
 -- | property to test equivalence of of `leap` & `leap'` functions.
 prop_leap_equiv :: Property
-prop_leap_equiv = forAll (chooseInt (1, 3000)) $
+prop_leap_equiv = forAll genYears $
   \x -> leap_classifys x $
         leap x === leap' x
 
@@ -97,14 +104,12 @@ prop_non_leap = forAll genNonLeap $
 --------------------------------------------------------------------------------
 -- | classification of property used in leap year testing.
 leap_classifys :: (Testable prop) => Int -> prop -> Property
-leap_classifys x = classify (x <= 100) "<= 100" .
-                   classify (x > 100 && x <= 1000) "100 - 1000" .
-                   classify (x > 1000 && x <= 2000) "1000 - 2000" .
-                   classify (x > 2000 && x <= 3000) "2000 - 3000" .
-                   classify (x `mod` 4 == 0) "divisible by 4" .
+leap_classifys x = classify (x `mod` 4 == 0) "divisible by 4" .
+                   classify (x `mod` 4 /= 0) "not divisible by 4" .
                    classify (x `mod` 100 /= 0) "has no 00" .
                    classify (x `mod` 100 == 0) "has 00" .
-                   classify (x `mod` 400 == 0) "divisible by 400"
+                   classify (x `mod` 400 == 0) "divisible by 400" .
+                   classify (x `mod` 400 /= 0) "not divisible by 400"
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
