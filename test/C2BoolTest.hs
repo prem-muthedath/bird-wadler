@@ -8,6 +8,9 @@
 --  2. on commandline, run `cabal v2-repl :bird-wadler-test` to start GHCi.
 --  3. at GHCi prompt, enter `import C2BoolTest`.
 --  4. you can then invoke `C2BoolTest.ghciQC` to run all quickcheck tests.
+--
+--  REF: "A Guide to Writing Properties of Pure Functions", John Hughes.
+--  https://research.chalmers.se/publication/517894/file/517894_Fulltext.pdf
 
 --------------------------------------------------------------------------------
 module C2BoolTest where
@@ -78,29 +81,47 @@ prop_validNonLeap = forAll genNonLeap $
         -- 100 `mod` 4 = 0, but 100 `mod` 400 /= 0, so 100 is a non-leap year.
         x `mod` 4 =/= 0 .||. x `mod` 400 =/= 0
 
--- | property to test a leap year.
+-- | property to test leap year.
 prop_leap :: Property
 prop_leap = forAll genLeap $
-              \x -> leap_classifys x $
-                    leap' x === True
+  \x -> leap_classifys x $
+        leap' x === True
 
--- | property to test leap year extension.
-prop_leap_extension :: Property
-prop_leap_extension = forAll extendableLeap $
-                        \x -> leap_classifys x $
-                              leap' x === leap' (x + 4)
+-- | property to test non-100-multiple leap year extension.
+-- this is a "metamorphic" property: how does changing the input affect output?
+prop_leap4_extension :: Property
+prop_leap4_extension = forAll extendableLeap $
+  \x -> leap_classifys x $
+        leap' x === leap' (x + 4)
   where extendableLeap :: Gen Int
         extendableLeap = do
-          y :: Int <- genLeap
+          y :: Int <- genLeap4
           if (y + 4) `mod` 100 == 0
              then return $ y - 4
              else return y
 
--- | property to test a non-leap year.
+-- | property to test 100-multiple leap year extension.
+-- this is a "metamorphic" property: how does changing the input affect output?
+prop_leap400_extension :: Property
+prop_leap400_extension = forAll genLeap400 $
+  \x -> leap_classifys x $
+        leap' x === leap' (x + 400)
+
+-- | property to test non-leap year.
 prop_non_leap :: Property
 prop_non_leap = forAll genNonLeap $
-                  \x -> leap_classifys x $
-                        leap' x === False
+  \x -> leap_classifys x $
+        leap' x === False
+
+-- | property to test non-leap year extension.
+-- this is a "metamorphic" property: how does changing the input affect output?
+prop_non_leap_extension :: Property
+prop_non_leap_extension = forAll genNonLeap $
+  \x -> leap_classifys x $
+        -- extend such that the extended year is always an odd number.
+        if even x
+          then leap' x === leap' (x + 3)
+          else leap' x === leap' (x + 2)
 --------------------------------------------------------------------------------
 -- | classification of property used in leap year testing.
 leap_classifys :: (Testable prop) => Int -> prop -> Property
@@ -130,11 +151,11 @@ instance Arbitrary (Triangle) where
   arbitrary = elements [toEnum 0 :: Triangle ..]
 --------------------------------------------------------------------------------
 -- | `Sides` data type: represents sides of a triangle, good or bad.
--- `Sides x y z` represents sides `x`, `y`, `z` of a triangle in order, where 
--- all sides are integers > 0, and x <= y <= z.
--- NOTE: this definition does NOT enforce the triangle criterion, `x + y > z`.
-type X = Int; type Y = Int; type Z = Int
-data Sides = Sides X Y Z deriving (Eq, Show)
+-- `Sides a b c` represents sides `a`, `b`, `c` of a triangle in order, where 
+-- all sides are integers > 0, and a <= b <= c.
+-- NOTE: this definition does NOT enforce the triangle criterion, `a + b > c`.
+type A = Int; type B = Int; type C = Int
+data Sides = Sides A B C deriving (Show)
 --------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Sides`.
 instance Arbitrary Sides where
@@ -150,13 +171,13 @@ instance Arbitrary Sides where
 -- | check if `Triangle` generator is valid.
 prop_validTriangle :: Property
 prop_validTriangle = forAll (arbitrary :: Gen Triangle) $
-  \x -> x `elem` [toEnum 0 :: Triangle .. ]
+  \x -> x `elem` [toEnum 0 :: Triangle ..]
 --------------------------------------------------------------------------------
 -- | check if `Sides` generater is valid.
 prop_trian_validSides :: Property
 prop_trian_validSides = forAll (assorted :: Gen Sides) $
-                          \s@(Sides x y z) ->
-                            let xs = [x, y, z]
+                          \s@(Sides a b c) ->
+                            let xs = [a, b, c]
                             in classifys s $
                                (sort xs === xs) .&&. (all (> 0) xs)
 --------------------------------------------------------------------------------
@@ -230,21 +251,21 @@ genSides triangle    = (arbitrary :: Gen Sides) `suchThat` f
 property' :: Triangle -> (Sides -> Bool)
 -- we define somewhat complex & ingenious triangle properties, because we do not 
 -- want to replicate the source code here, and in that way duplicate bugs!
-property' Equilateral = \(Sides x y z) -> x + y + z == 3 * x
-property' Isoceles    = \(Sides x y z) ->
-                          let tot = x + y + z
-                          in (tot /= 3 * x) &&
-                             ((tot == 2 * y + z) ||
-                              (tot == x + 2 * y))
-property' Scalene     = \(Sides x y z) ->
-                          let tot = x + y + z
-                          in (tot > 2 * x + z) &&
-                             (tot < 2 * y + z) &&
-                             (tot > x + 2 * y) &&
-                             (tot < 3 * z)
-property' Good        = \(Sides x y z) -> x + y > z
-property' Bad         = \(Sides x y z) -> x + y <= z
-property' Mix         = \(Sides x _ z) -> x /= z
+property' Equilateral = \(Sides a b c) -> a + b + c == 3 * a
+property' Isoceles    = \(Sides a b c) ->
+                          let tot = a + b + c
+                          in (tot /= 3 * a) &&
+                             ((tot == 2 * b + c) ||
+                              (tot == a + 2 * b))
+property' Scalene     = \(Sides a b c) ->
+                          let tot = a + b + c
+                          in (tot > 2 * a + c) &&
+                             (tot < 2 * b + c) &&
+                             (tot > a + 2 * b) &&
+                             (tot < 3 * c)
+property' Good        = \(Sides a b c) -> a + b > c
+property' Bad         = \(Sides a b c) -> a + b <= c
+property' Mix         = \(Sides a _ c) -> a /= c
 
 -- | classifications for a property used in testing triangle construction.
 classifys :: (Testable prop) => Sides -> prop -> Property
