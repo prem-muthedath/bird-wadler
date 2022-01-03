@@ -122,6 +122,20 @@ prop_non_leap_extension = forAll genNonLeap $
         if even x
           then leap' x === leap' (x + 3)
           else leap' x === leap' (x + 2)
+
+-- | property to test expected leap` function failure when passed values <= 0.
+-- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
+prop_leap'_failure:: Property
+prop_leap'_failure = expectFailure $
+  leap' <$> ((arbitrary :: Gen Int)
+             `suchThat` (\x -> x <= 0))
+
+-- | property to test expected leap function failure when passed values <= 0.
+-- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
+prop_leap_failure:: Property
+prop_leap_failure = expectFailure $
+  leap <$> ((arbitrary :: Gen Int)
+            `suchThat` (<= 0))
 --------------------------------------------------------------------------------
 -- | classification of property used in leap year testing.
 leap_classifys :: (Testable prop) => Int -> prop -> Property
@@ -216,6 +230,17 @@ prop_trian_scal :: Property
 prop_trian_scal = forAll (genSides Scalene) $
   \s@(Sides a b c) -> classifys s $
                       analyze a b c === 3
+--------------------------------------------------------------------------------
+-- | property to test expected failure.
+prop_trian_failure :: Property
+prop_trian_failure = expectFailure f
+  where f :: Gen Property
+        f = do
+          a :: Int <- chooseInt (-100, 100)
+          b :: Int <- chooseInt (-100, 100)
+          c :: Int <- chooseInt (-100, 100)
+          let (x:y:z:[]) :: [Int] = reverse $ sort [a, b, c]
+          return $ analyze x y z =/= 0
 --------------------------------------------------------------------------------
 -- | helper functions.
 --------------------------------------------------------------------------------
