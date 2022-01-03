@@ -180,7 +180,7 @@ instance Arbitrary Sides where
                         Sides (getPositive x)
                               (getPositive y)
                               (getPositive z)
-        _           -> error "orbitrary.Sides: only 3-element list allowed."
+        _           -> error "arbitrary.Sides: only 3-element list allowed."
 --------------------------------------------------------------------------------
 -- | check if `Triangle` generator is valid.
 prop_validTriangle :: Property
@@ -202,6 +202,7 @@ prop_trian_assorted = forAll assorted $
                       (analyze a b c) `elem` [0 .. 3]
 --------------------------------------------------------------------------------
 -- | for random valid inputs, outputs remain same even when inputs are doubled.
+-- this is a "metamorphic" property: how does changing the input affect output?
 prop_trian_double :: Property
 prop_trian_double = forAll assorted $
   \s@(Sides a b c) -> classifys s $
@@ -232,6 +233,7 @@ prop_trian_scal = forAll (genSides Scalene) $
                       analyze a b c === 3
 --------------------------------------------------------------------------------
 -- | property to test expected failure.
+-- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
 prop_trian_failure :: Property
 prop_trian_failure = expectFailure f
   where f :: Gen Property
@@ -249,7 +251,7 @@ assorted :: Gen Sides
 assorted = do
   triangle :: Triangle <- (arbitrary :: Gen Triangle)
   genSides triangle
-
+--------------------------------------------------------------------------------
 -- | generate sides for a `Triangle`.
 genSides :: Triangle -> Gen Sides
 -- NOTE: because generating `Sides` having all identical values through random 
@@ -267,7 +269,7 @@ genSides triangle    = (arbitrary :: Gen Sides) `suchThat` f
         g = property' triangle
         h :: (Sides -> Bool)
         h = property' Good
-
+--------------------------------------------------------------------------------
 -- return property (a lambda) associated with a given `Triangle`.
 -- `property'` represents rules the sides of a given `Triangle` must obey.
 -- NOTE: in case of valid triangles other than `Good`, the returned property 
@@ -291,7 +293,7 @@ property' Scalene     = \(Sides a b c) ->
 property' Good        = \(Sides a b c) -> a + b > c
 property' Bad         = \(Sides a b c) -> a + b <= c
 property' Mix         = \(Sides a _ c) -> a /= c
-
+--------------------------------------------------------------------------------
 -- | classifications for a property used in testing triangle construction.
 classifys :: (Testable prop) => Sides -> prop -> Property
 classifys s = classify (property' Bad $ s)  "bad" .
