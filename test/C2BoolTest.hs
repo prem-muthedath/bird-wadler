@@ -190,10 +190,10 @@ prop_validTriangle = forAll (arbitrary :: Gen Triangle) $
 -- | check if `Sides` generater is valid.
 prop_trian_validSides :: Property
 prop_trian_validSides = forAll (assorted :: Gen Sides) $
-                          \s@(Sides a b c) ->
-                            let xs = [a, b, c]
-                            in classifys s $
-                               (sort xs === xs) .&&. (all (> 0) xs)
+  \s@(Sides a b c) ->
+    let xs = [a, b, c]
+    in classifys s $
+       (sort xs === xs) .&&. (all (> 0) xs)
 --------------------------------------------------------------------------------
 -- | for random valid inputs, check if outputs are valid.
 prop_trian_assorted :: Property
