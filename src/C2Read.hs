@@ -798,11 +798,11 @@ instance Read T where
           --  they enclose. so what is the parse strategy? well, the string 
           --  parse always proceeds left to right, but for the parse to be 
           --  successful (i.e., exhaustive), the parse must first "center" 
-          --  itself on the "root" node -- the outremost or top node.  this top 
+          --  itself on the "root" node -- the outermost or top node.  this top 
           --  node may be a parenthesis (if, for example, the entire string is 
           --  within parentheses) or an operator. `showsPrec` usually inserts 
           --  parentheses to make the top node clear. anyway, the parse should 
-          --  be centered on the top node; if nnt, you will get a bad parse.
+          --  be centered on the top node; if not, you will get a bad parse.
           --
           --  to center the parse on the top node, one sure way is to force 
           --  `readParen` to call `optional` in the very first pass. to do this, 
