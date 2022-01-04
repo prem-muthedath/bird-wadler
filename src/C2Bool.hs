@@ -153,12 +153,12 @@ years = [1600, 2000, 1700, 1800, 1900]
 
 -- | first attempt, using boolean operators.
 leap :: Int -> Bool
-leap y | y <= 0 = error "year has to be >= 1"
+leap y | y <= 0 = error "C2Bool.leap: year has to be >= 1"
 leap y = (y `mod` 4 == 0) && ((y `mod` 100 /= 0) || (y `mod` 400 == 0))
 
 -- | second attempt, using guards & local defn.
 leap' :: Int -> Bool
-leap' y | y <= 0    = error "year has to be >= 1"
+leap' y | y <= 0    = error "C2Bool.leap': year has to be >= 1"
         | byHundred = y `mod` 400 == 0
         | otherwise = y `mod` 4 == 0
         where byHundred :: Bool
@@ -176,7 +176,7 @@ leap' y | y <= 0    = error "year has to be >= 1"
 --    (iv)  3 -- form a scalene triangle (all lengths are different).
 analyze :: Int -> Int -> Int -> Int
 analyze a b c | a <= 0 || a > b || b > c
-                = error "input must be 3 positive numbers in non-decreasing order."
+                = error "C2Bool.analyze: input must be 3 positive integers in non-decreasing order."
               | (a + b) <= c = 0                                    -- improper
               | (a + b > c) && (a == c) = 1                         -- equilateral
               | (a + b > c) && (a /= c && (a == b || b == c)) = 2   -- isoceles

@@ -92,7 +92,7 @@ prop_leap = forAll genLeap $
 prop_leap4_extension :: Property
 prop_leap4_extension = forAll extendableLeap $
   \x -> leap_classifys x $
-        leap' x === leap' (x + 4)
+        (leap' x === leap' (x + 4)) .&&. (leap' x =/= leap' (x + 1))
   where extendableLeap :: Gen Int
         extendableLeap = do
           y :: Int <- genLeap4
@@ -105,7 +105,7 @@ prop_leap4_extension = forAll extendableLeap $
 prop_leap400_extension :: Property
 prop_leap400_extension = forAll genLeap400 $
   \x -> leap_classifys x $
-        leap' x === leap' (x + 400)
+        (leap' x === leap' (x + 400)) .&&. (leap' x =/= leap'(x + 100))
 
 -- | property to test non-leap year.
 prop_non_leap :: Property
@@ -208,6 +208,17 @@ prop_trian_double = forAll assorted $
   \s@(Sides a b c) -> classifys s $
                       analyze a b c === analyze (2*a) (2*b) (2*c)
 --------------------------------------------------------------------------------
+-- | outputs CHANGE when valid inputs are changed to flip triangle condition.
+-- this is a "metamorphic" property: how does changing the input affect output?
+prop_trian_flip :: Property
+prop_trian_flip = forAll assorted $
+  \s@(Sides a b c) -> classifys s $
+                      if (a + b > c)
+                        -- alter input to flip triangle condition to `Bad`.
+                        then analyze a b c =/= analyze a b (c+a+b)
+                        -- alter input to flip triangle to `Equilateral`.
+                        else analyze a b c =/= analyze a a a
+--------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
 prop_trian_bad :: Property
 prop_trian_bad = forAll (genSides Bad) $
@@ -234,15 +245,20 @@ prop_trian_scal = forAll (genSides Scalene) $
 --------------------------------------------------------------------------------
 -- | property to test expected failure.
 -- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
+-- NOTE: the use of `forAll` allows display of the actual test case that failed.
+-- also, this version, using function `g` that returns `Bool` instead of 
+-- `Property`, avoids the 'Exception thrown while showing test case' message.
 prop_trian_failure :: Property
-prop_trian_failure = expectFailure f
-  where f :: Gen Property
+prop_trian_failure = expectFailure $ forAll f g
+  where f :: Gen (Int, Int, Int)
         f = do
           a :: Int <- chooseInt (-100, 100)
           b :: Int <- chooseInt (-100, 100)
           c :: Int <- chooseInt (-100, 100)
           let (x:y:z:[]) :: [Int] = reverse $ sort [a, b, c]
-          return $ analyze x y z =/= 0
+          return (x, y, z)
+        g :: (Int, Int, Int) -> Bool
+        g (x, y, z) = analyze x y z == 0
 --------------------------------------------------------------------------------
 -- | helper functions.
 --------------------------------------------------------------------------------
