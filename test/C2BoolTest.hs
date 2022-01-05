@@ -155,9 +155,7 @@ leap_classifys x = classify (x `mod` 4 == 0) "divisible by 4" .
 data Triangle = Equilateral
                 | Isoceles
                 | Scalene
-                | Good   -- 3 sides form a triangle.
                 | Bad    -- 3 sides do NOT form a triangle.
-                | Mix    -- may be good, may be bad; but NOT all sides same.
                 deriving (Show, Eq, Enum)
 --------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Triangle`.
@@ -180,7 +178,7 @@ instance Arbitrary Sides where
                         Sides (getPositive x)
                               (getPositive y)
                               (getPositive z)
-        _           -> error "arbitrary.Sides: only 3-element list allowed."
+        _           -> error "C2BoolTest.arbitrary.Sides: only 3-element list allowed."
 --------------------------------------------------------------------------------
 -- | check if `Triangle` generator is valid.
 prop_validTriangle :: Property
@@ -195,9 +193,9 @@ prop_trian_validSides = forAll (assorted :: Gen Sides) $
     in classifys s $
        (sort xs === xs) .&&. (all (> 0) xs)
 --------------------------------------------------------------------------------
--- | for random valid inputs, check if outputs are valid.
-prop_trian_assorted :: Property
-prop_trian_assorted = forAll assorted $
+-- | for random valid inputs, check if outputs are in expected range.
+prop_trian_range :: Property
+prop_trian_range = forAll assorted $
   \s@(Sides a b c) -> classifys s $
                       (analyze a b c) `elem` [0 .. 3]
 --------------------------------------------------------------------------------
@@ -208,16 +206,22 @@ prop_trian_double = forAll assorted $
   \s@(Sides a b c) -> classifys s $
                       analyze a b c === analyze (2*a) (2*b) (2*c)
 --------------------------------------------------------------------------------
--- | outputs CHANGE when valid inputs are changed to flip triangle condition.
+-- | check if outputs CHANGE when inputs transform from one triangle to another.
+-- another view: does each `Triangle` value produce a distinct output?
 -- this is a "metamorphic" property: how does changing the input affect output?
-prop_trian_flip :: Property
-prop_trian_flip = forAll assorted $
-  \s@(Sides a b c) -> classifys s $
-                      if (a + b > c)
-                        -- alter input to flip triangle condition to `Bad`.
-                        then analyze a b c =/= analyze a b (c+a+b)
-                        -- alter input to flip triangle to `Equilateral`.
-                        else analyze a b c =/= analyze a a a
+prop_trian_transform :: Property
+prop_trian_transform = forAll (arbitrary :: Gen Triangle) $
+  \x -> do (Sides a b c) <- genSides x
+           let original     = analyze a b c
+               equilateral  = analyze  a a a
+               isoceles     = analyze a (a+1) (a+1)
+               scalene      = analyze (a + 1) (b + 2) (c + 3)
+               bad          = analyze a b (c + a + b)
+           return $ classifys (Sides a b c) $ case x of
+              Equilateral -> original =/= isoceles
+              Isoceles    -> (original =/= scalene) .&&. (original =/= bad)
+              Scalene     -> (original =/= equilateral) .&&. (original =/= bad)
+              Bad         -> original =/= equilateral
 --------------------------------------------------------------------------------
 -- | property to test outputs for non-existent triangle.
 prop_trian_bad :: Property
@@ -275,22 +279,22 @@ genSides :: Triangle -> Gen Sides
 -- `Equilateral` triangle like the way it is done for other triangles. so we use 
 -- a different algorithm for `Equilateral` triangle.
 genSides Equilateral = do
-        x <- chooseInt (1, 1000)
+        x :: Int <- chooseInt (1, 1000)
         return $ Sides x x x
-genSides triangle    = (arbitrary :: Gen Sides) `suchThat` f
+genSides triangle = (arbitrary :: Gen Sides) `suchThat` f
   where f :: (Sides -> Bool)
-        f | triangle `elem` [Mix, Bad] = g
-          | otherwise                  = \x -> g x && h x
+        f | triangle == Bad = g
+          | otherwise       = \s -> g s && h s
         g :: (Sides -> Bool)
         g = property' triangle
         h :: (Sides -> Bool)
-        h = property' Good
+        h = \(Sides a b c) -> a + b > c
 --------------------------------------------------------------------------------
 -- return property (a lambda) associated with a given `Triangle`.
 -- `property'` represents rules the sides of a given `Triangle` must obey.
--- NOTE: in case of valid triangles other than `Good`, the returned property 
--- does NOT include the basic check of whether or not something is a triangle.  
--- if you need to generate a valid triangle, use `genSides` given above.
+-- NOTE: in case of valid triangles, the returned property does NOT include the 
+-- basic check of whether or not something is a triangle.  if you need to 
+-- generate a valid triangle, use `genSides` given above.
 property' :: Triangle -> (Sides -> Bool)
 -- we define somewhat complex & ingenious triangle properties, because we do not 
 -- want to replicate the source code here, and in that way duplicate bugs!
@@ -306,19 +310,15 @@ property' Scalene     = \(Sides a b c) ->
                              (tot < 2 * b + c) &&
                              (tot > a + 2 * b) &&
                              (tot < 3 * c)
-property' Good        = \(Sides a b c) -> a + b > c
 property' Bad         = \(Sides a b c) -> a + b <= c
-property' Mix         = \(Sides a _ c) -> a /= c
 --------------------------------------------------------------------------------
 -- | classifications for a property used in testing triangle construction.
 classifys :: (Testable prop) => Sides -> prop -> Property
-classifys s = classify (property' Bad $ s)  "bad" .
-              if (property' Good $ s)
-                 then classify (property' Good $ s) "triangle" .
-                      classify (property' Equilateral $ s) "equilateral" .
-                      classify (property' Isoceles $ s) "isoceles" .
-                      classify (property' Scalene $ s) "scalene"
-                 else classify (property' Good $ s) "triangle"
+classifys s = if (property' Bad $ s)
+                  then classify (property' Bad $ s)  "bad"
+                  else  classify (property' Equilateral $ s) "equilateral" .
+                        classify (property' Isoceles $ s) "isoceles" .
+                        classify (property' Scalene $ s) "scalene"
 
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
