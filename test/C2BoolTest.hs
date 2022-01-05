@@ -59,12 +59,6 @@ genYears = frequency
 --------------------------------------------------------------------------------
 -- | leap -- properties
 --------------------------------------------------------------------------------
--- | property to test equivalence of `leap` & `leap'` functions.
-prop_leap_equiv :: Property
-prop_leap_equiv = forAll genYears $
-  \x -> leap_classifys x $
-        leap x === leap' x
-
 -- | check if leap year generator is valid.
 prop_validLeap :: Property
 prop_validLeap = forAll genLeap $
@@ -80,6 +74,12 @@ prop_validNonLeap = forAll genNonLeap $
         -- some non-leap years, say 100, generated may be divisible by 4!
         -- 100 `mod` 4 = 0, but 100 `mod` 400 /= 0, so 100 is a non-leap year.
         x `mod` 4 =/= 0 .||. x `mod` 400 =/= 0
+
+-- | property to test equivalence of `leap` & `leap'` functions.
+prop_leap_equiv :: Property
+prop_leap_equiv = forAll genYears $
+  \x -> leap_classifys x $
+        leap x === leap' x
 
 -- | property to test leap year.
 prop_leap :: Property
@@ -123,14 +123,14 @@ prop_non_leap_extension = forAll genNonLeap $
           then leap' x === leap' (x + 3)
           else leap' x === leap' (x + 2)
 
--- | property to test expected leap` function failure when passed values <= 0.
+-- | property to test expected `leap'` function failure when passed values <= 0.
 -- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
 prop_leap'_failure:: Property
 prop_leap'_failure = expectFailure $
   leap' <$> ((arbitrary :: Gen Int)
              `suchThat` (\x -> x <= 0))
 
--- | property to test expected leap function failure when passed values <= 0.
+-- | property to test expected `leap` function failure when passed values <= 0.
 -- REF: /u/ jtobin @ https://tinyurl.com/3ndhasr7 (so)
 prop_leap_failure:: Property
 prop_leap_failure = expectFailure $
@@ -151,7 +151,7 @@ leap_classifys x = classify (x `mod` 4 == 0) "divisible by 4" .
 -- | quickcheck testing -- triangle stuff
 --------------------------------------------------------------------------------
 -- | `Triangle` data type.
--- list of all possible traingles considered.
+-- list of all possible triangles considered.
 data Triangle = Equilateral
                 | Isoceles
                 | Scalene
@@ -185,7 +185,7 @@ prop_validTriangle :: Property
 prop_validTriangle = forAll (arbitrary :: Gen Triangle) $
   \x -> x `elem` [toEnum 0 :: Triangle ..]
 --------------------------------------------------------------------------------
--- | check if `Sides` generater is valid.
+-- | check if `Sides` generator is valid.
 prop_trian_validSides :: Property
 prop_trian_validSides = forAll (assorted :: Gen Sides) $
   \s@(Sides a b c) ->
@@ -199,7 +199,7 @@ prop_trian_range = forAll assorted $
   \s@(Sides a b c) -> classifys s $
                       (analyze a b c) `elem` [0 .. 3]
 --------------------------------------------------------------------------------
--- | for random valid inputs, outputs remain same even when inputs are doubled.
+-- | for random valid inputs, do outputs remain same when inputs are doubled?
 -- this is a "metamorphic" property: how does changing the input affect output?
 prop_trian_double :: Property
 prop_trian_double = forAll assorted $
@@ -213,7 +213,7 @@ prop_trian_transform :: Property
 prop_trian_transform = forAll (arbitrary :: Gen Triangle) $
   \x -> do (Sides a b c) <- genSides x
            let original     = analyze a b c
-               equilateral  = analyze  a a a
+               equilateral  = analyze a a a
                isoceles     = analyze a (a+1) (a+1)
                scalene      = analyze (a + 1) (b + 2) (c + 3)
                bad          = analyze a b (c + a + b)
