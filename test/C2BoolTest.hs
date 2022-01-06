@@ -89,6 +89,11 @@ prop_leap = forAll genLeap $
 
 -- | property to test non-100-multiple leap year extension.
 -- this is a "metamorphic" property: how does changing the input affect output?
+--
+-- NOTE: this property is redundant because we already have `prop_leap` in this 
+-- module that tests outputs against expected value for different `leap4` years.  
+-- nevertheless, despite its redundancy, i prefer to keep this property, because 
+-- writing it is a way to think about metamorphic properties.
 prop_leap4_extension :: Property
 prop_leap4_extension = forAll extendableLeap $
   \x -> leap_classifys x $
@@ -102,6 +107,11 @@ prop_leap4_extension = forAll extendableLeap $
 
 -- | property to test 100-multiple leap year extension.
 -- this is a "metamorphic" property: how does changing the input affect output?
+--
+-- NOTE: this property is redundant because we already have `prop_leap` in this 
+-- module that tests outputs against expected value for different `leap400` 
+-- years.  nevertheless, despite its redundancy, i prefer to keep this property, 
+-- because writing it is a way to think about metamorphic properties.
 prop_leap400_extension :: Property
 prop_leap400_extension = forAll genLeap400 $
   \x -> leap_classifys x $
@@ -115,6 +125,11 @@ prop_non_leap = forAll genNonLeap $
 
 -- | property to test non-leap year extension.
 -- this is a "metamorphic" property: how does changing the input affect output?
+--
+-- NOTE: this property is redundant because we already have `prop_non_leap` in 
+-- this module that tests outputs against expected value for different non-leap 
+-- years. nevertheless, despite its redundancy, i prefer to keep this property, 
+-- because writing it is a way to think about metamorphic properties.
 prop_non_leap_extension :: Property
 prop_non_leap_extension = forAll genNonLeap $
   \x -> leap_classifys x $
@@ -209,6 +224,11 @@ prop_trian_double = forAll assorted $
 -- | check if outputs CHANGE when inputs transform from one triangle to another.
 -- another view: does each `Triangle` value produce a distinct output?
 -- this is a "metamorphic" property: how does changing the input affect output?
+--
+-- NOTE: this property is redundant because we already have properties in this 
+-- module that test outputs against expected values for different `Triangle` 
+-- values, and these expected values all differ. still, i prefer to keep this 
+-- property, because writing it is a way to think about metamorphic properties.
 prop_trian_transform :: Property
 prop_trian_transform = forAll (arbitrary :: Gen Triangle) $
   \x -> do (Sides a b c) <- genSides x
