@@ -11,6 +11,10 @@
 --
 --  REF: "A Guide to Writing Properties of Pure Functions", John Hughes.
 --  https://research.chalmers.se/publication/517894/file/517894_Fulltext.pdf
+--
+--  core ideas for these tests come from /u/ wes toleman on "how do you test a 
+--  lexer using quickcheck?" @ https://tinyurl.com/2p8pt57w 
+--  (softwareengineering.SE).
 
 --------------------------------------------------------------------------------
 module C2LexTest where
