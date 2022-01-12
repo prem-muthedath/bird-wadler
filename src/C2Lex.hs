@@ -80,9 +80,9 @@ isIdChar c  =  isAlphaNum c || c `elem` "_'"
 -- all digits following decimal & then parses exponent, if any. if no decimal, 
 -- it goes to the 2nd part, which simply parses the exponent, indicated by "eE".
 
--- valid inputs should EITHER begin with a decimal, which may contain an 
--- exponent "eE", OR begin with an exponent "eE". other inputs will simply 
--- return [("", str)], where `str` is the original string.
+-- valid inputs should begin with either a decimal, which may contain an 
+-- exponent "eE", OR an exponent "eE". other inputs will simply return [("", 
+-- str)], where `str` is the original string.
 -- sample inputs, outputs:
 --    1. ".123e+10"  ->  [(".123e+10","")]
 --    2. ".123E10"   ->  [(".123E10","")]
