@@ -179,7 +179,7 @@ prop_validBad :: Property
 prop_validBad = forAll genBad $
   \xs -> let (a1, a2) = span (== '\'') xs
              (b1, b2) = span (== '\"') xs
-             (c1, c2) = span (== ' ') xs
+             (c1, c2) = span isSpace xs
              (d1, d2) = span isSingle xs
              (e1, e2) = span isSym xs
              (f1, f2) = span isAlpha xs
