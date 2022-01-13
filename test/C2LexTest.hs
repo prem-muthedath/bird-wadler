@@ -75,7 +75,7 @@ genDigit = do
   chs <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
   str <- (arbitrary :: Gen String)
          `suchThat`
-         (all (not . (`elem` ['e', 'E', '.'])))
+         (all (not . (`elem` "eE.")))
   return $ chs ++ str
 --------------------------------------------------------------------------------
 genSpaces :: Gen String
