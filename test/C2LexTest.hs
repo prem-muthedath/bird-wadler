@@ -75,7 +75,7 @@ genDigit = do
   chs <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
   str <- (arbitrary :: Gen String)
          `suchThat`
-         (\xs -> all (\x -> not $ x `elem` ['e', 'E', '.']) xs)
+         (all (not . (`elem` ['e', 'E', '.'])))
   return $ chs ++ str
 --------------------------------------------------------------------------------
 genSpaces :: Gen String
@@ -125,8 +125,8 @@ prop_validSym = forAll genSym $
 prop_validSingleQ :: Property
 prop_validSingleQ = forAll genSingleQuotes $
   \xs -> case xs of
-      ('\'':x:'\'':_)  -> x /= '\'' && x /= '\\'
-      _                -> False
+      ('\'':x:'\'':_)  -> x =/= '\'' .&&. x =/= '\\'
+      _                -> property False
 --------------------------------------------------------------------------------
 prop_validDoubleQ :: Property
 prop_validDoubleQ = forAll genDoubleQuotes $
@@ -147,7 +147,7 @@ prop_validDigit = forAll genDigit $
                 _     -> notFractional b) .&&.
             xs === (a ++ b)
   where notFractional :: String -> Property
-        notFractional s = property $ all (\x -> not $ x `elem` "eE.") s
+        notFractional s = property $ all (not . (`elem` "eE.")) s
 --------------------------------------------------------------------------------
 prop_validSpace :: Property
 prop_validSpace = forAll genSpaces $
