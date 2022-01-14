@@ -22,6 +22,8 @@ module C2LexTest where
 -- Test.QuickCheck @ https://tinyurl.com/2p9s9ets
 -- Data.List @ https://tinyurl.com/ycxb9uaw
 -- Data.Char @ https://tinyurl.com/2c72x8ya
+-- Text.Read @ https://tinyurl.com/36etaccn
+-- Text.Read.Lex @ https://tinyurl.com/2tnj35ky
 import Test.QuickCheck
 import Data.List (isInfixOf)
 import Data.Char (isSpace, isAlpha, isDigit)
@@ -93,6 +95,18 @@ genSpaces :: Gen String
 genSpaces = listOf $ (arbitrary :: Gen Char) `suchThat` isSpace
 --------------------------------------------------------------------------------
 -- | generate string that begins with a fractional in scientific notation.
+--    1. all fractional numbers begin with 1 or more digits;
+--    2. (1) may be followed by an optional decimal;
+--    3. 1 or more digits follow (1-2);
+--    4. next, we have the exponent, indicated by 'e' or 'E';
+--    5. (4) may be followed by an optional '+' or '-';
+--    6. (4-5) followed by 1 or more digits representing the exponent.
+--    examples:
+--      "123.45e+15"  "123.45E+15"
+--      "12345e+15"   "12345E+15"
+--      "12345e-15"   "12345E-15"
+--      "12.345e15"   "12.345E15"
+--      "12345e15"    "12345E15"
 genFractional :: Gen String
 genFractional = do
   a <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
@@ -217,7 +231,7 @@ prop_validBad = forAll genBad $
             (all (== xs) [a2, b2, c2, d2, e2, f2])
 --------------------------------------------------------------------------------
 -- | lex -- properties
-
+--------------------------------------------------------------------------------
 -- NOTE: `Lexeme` defined in `Text.Read.Lex`.
 --  data Lexeme
 --      = Char Char
@@ -232,8 +246,8 @@ prop_validBad = forAll genBad $
 -- | check `lex'` parse of string starting with 1+ 'singles'.
 prop_single :: Property
 prop_single = forAll (appendTo genSingles) $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&.
                               length a1 === 1 .&&.
                               (property . isSingle . head $ a1)
           _               -> property False
@@ -241,8 +255,8 @@ prop_single = forAll (appendTo genSingles) $
 -- | check `lex'` parse of string that starts with 1+ 'symbols'.
 prop_sym :: Property
 prop_sym = forAll (appendTo genSyms) $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&.
                              (case a1 of
                                 []    -> property False
                                 _     -> property $ all isSym a1) .&&.
@@ -266,8 +280,8 @@ prop_sym = forAll (appendTo genSyms) $
 --       `read "'p'" :: Char = 'p'`
 prop_singleQuotes :: Property
 prop_singleQuotes = forAll genSingleQuotes $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&. asRead xs (a1, a2)
           _               -> property False
   where asRead :: String -> (String, String) -> Property
         asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(Char, String)]
@@ -291,8 +305,8 @@ prop_singleQuotes = forAll genSingleQuotes $
 --       `read "\"prem\"" :: String = "prem"`
 prop_doubleQuotes :: Property
 prop_doubleQuotes = forAll (appendTo genDoubleQuotes) $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&. asRead xs (a1, a2)
           _               -> property False
   where asRead :: String -> (String, String) -> Property
         asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(String, String)]
@@ -310,8 +324,8 @@ prop_doubleQuotes = forAll (appendTo genDoubleQuotes) $
 -- constructor defined for `Lexeme`.
 prop_alpha :: Property
 prop_alpha = forAll (appendTo genAlphas) $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&. asRead xs (a1, a2)
           _               -> property False
   where asRead :: String -> (String, String) -> Property
         asRead s (l1, l2) = let rs = readsPrec 0 s :: [(Lexeme, String)]
@@ -324,8 +338,8 @@ prop_alpha = forAll (appendTo genAlphas) $
 -- comes from `read` & `readsPrec` functions in `Read` instance for `Integer`.
 prop_digit :: Property
 prop_digit = forAll genDigits $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.asRead x (a1, a2)
+  \xs -> case (lex' xs) of
+          ((a1, a2) : []) -> (a1 ++ a2) === xs .&&.asRead xs (a1, a2)
           _               -> property False
   where asRead :: String -> (String, String) -> Property
         asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(Integer, String)]
@@ -339,7 +353,7 @@ prop_digit = forAll genDigits $
 -- is, anything that returns `True` from `Data.Char.isSpace`.
 prop_space :: Property
 prop_space = forAll (appendTo genSpaces) $
-  \x -> lex' x === (lex' $ dropWhile isSpace x)
+  \xs -> lex' xs === (lex' $ dropWhile isSpace xs)
 --------------------------------------------------------------------------------
 -- | check `lex'` parse of string representing a fractional number.
 -- we use both a post-condition and a model to test this property.  the model 
