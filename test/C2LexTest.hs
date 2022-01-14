@@ -181,8 +181,7 @@ prop_validDigits = forAll genDigits $
          in a =/= [] .&&.
             (case b of
                 ""    -> property True
-                _     -> notFractional b) .&&.
-            xs === (a ++ b)
+                _     -> notFractional b)
   where notFractional :: String -> Property
         notFractional s = property $ all (not . (`elem` "eE.")) s
 --------------------------------------------------------------------------------
@@ -353,7 +352,8 @@ prop_digit = forAll genDigits $
 -- is, anything that returns `True` from `Data.Char.isSpace`.
 prop_space :: Property
 prop_space = forAll (appendTo genSpaces) $
-  \xs -> lex' xs === (lex' $ dropWhile isSpace xs)
+  \xs -> classify (xs == "") "empty string" $
+         lex' xs === (lex' $ dropWhile isSpace xs)
 --------------------------------------------------------------------------------
 -- | check `lex'` parse of string representing a fractional number.
 -- we use both a post-condition and a model to test this property.  the model 
