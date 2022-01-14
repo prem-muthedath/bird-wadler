@@ -25,6 +25,7 @@ module C2LexTest where
 import Test.QuickCheck
 import Data.List (isInfixOf)
 import Data.Char (isSpace, isAlpha, isDigit)
+import Text.Read.Lex (Lexeme (Ident))
 
 import C2Lex
 import Common (ghciRunner)
@@ -34,12 +35,16 @@ import Common (ghciRunner)
 --------------------------------------------------------------------------------
 -- | lex -- generators.
 --------------------------------------------------------------------------------
-genSingle :: Gen String
-genSingle = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSingle
+-- | generate 1+ 'singles': haskell punctuation, underscore, apostrophe.
+genSingles :: Gen String
+genSingles = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSingle
 --------------------------------------------------------------------------------
-genSym :: Gen String
-genSym = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSym
+-- | generate 1+ haskell 'symbols'.
+genSyms :: Gen String
+genSyms = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSym
 --------------------------------------------------------------------------------
+-- | generate string that begins with 2 single quotes enclosing a character. the 
+-- enclosed character is NOT a single quote.
 genSingleQuotes :: Gen String
 -- NOTE: previously, we had used `suchThat` on the generated list, but it was a 
 -- bit slow.  see the commented code below.
@@ -56,6 +61,7 @@ genSingleQuotes = do
   chs <- listOf (arbitrary :: Gen Char)
   return $ ['\'', ch, '\''] ++ chs
 --------------------------------------------------------------------------------
+-- | generate string that begins with a `"` & has 1+ `"` further on.
 genDoubleQuotes :: Gen String
 genDoubleQuotes = do
   str <- (arbitrary :: Gen String)
@@ -63,24 +69,30 @@ genDoubleQuotes = do
          (\xs -> ("\"" `isInfixOf` xs) && not ("\\" `isInfixOf` xs))
   return $ '\"' : str
 --------------------------------------------------------------------------------
-genAlpha :: Gen String
-genAlpha = do
+-- | generate string that begins with 1+ alphabets, followed by 0+ `id` chars.
+genAlphas :: Gen String
+genAlphas = do
   chs <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isAlpha
   ch  <- elements chs
   ids <- listOf $ (arbitrary :: Gen Char) `suchThat` isIdChar
   return $ ch : ids
 --------------------------------------------------------------------------------
-genDigit :: Gen String
-genDigit = do
+-- | generate string that begins with 1+ digits and having no fractional part.
+genDigits :: Gen String
+genDigits = do
   chs <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
   str <- (arbitrary :: Gen String)
          `suchThat`
          (all (not . (`elem` "eE.")))
   return $ chs ++ str
 --------------------------------------------------------------------------------
+-- | generate string that begins with 0+ space characters.
+-- NOTE: 'space' here includes blanks as well as all other characters, such as 
+-- '\n', '\t', that are regarded as spaces by `Data.Char.isSpace` function.
 genSpaces :: Gen String
 genSpaces = listOf $ (arbitrary :: Gen Char) `suchThat` isSpace
 --------------------------------------------------------------------------------
+-- | generate string that begins with a fractional in scientific notation.
 genFractional :: Gen String
 genFractional = do
   a <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
@@ -95,17 +107,22 @@ genFractional = do
   f <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isDigit
   return $ a ++ b ++ c ++ [d] ++ e ++ f
 --------------------------------------------------------------------------------
+-- | generate 'bad' string that results in parse failure (i.e., []).
 genBad :: Gen String
-genBad = listOf1 ((arbitrary :: Gen Char)
+genBad = (listOf1 ((arbitrary :: Gen Char)
                   `suchThat`
-                  (\x -> x /= '\'' &&
-                         x /= '\"' &&
+                  (\x -> x /= '\"' &&
                          (not $ isSpace x) &&
                          (not $ isSingle x) &&
                          (not $ isSym x) &&
                          (not $ isAlpha x) &&
                          (not $ isDigit x)))
+                 `suchThat`
+                 (\xs -> case xs of
+                          ('\'':x:'\'':_) -> x == '\''
+                          _               -> True))
 --------------------------------------------------------------------------------
+-- | append a random string of 0+ length to the supplied random string.
 appendTo :: Gen String -> Gen String
 appendTo g = do
   str1 :: String <- g
@@ -114,32 +131,38 @@ appendTo g = do
 --------------------------------------------------------------------------------
 -- | lex -- test the generators!
 --------------------------------------------------------------------------------
-prop_validSingle :: Property
-prop_validSingle = forAll genSingle $
+-- | check if generated 'singles` string is valid.
+prop_validSingles :: Property
+prop_validSingles = forAll genSingles $
   \xs -> all isSingle xs
 --------------------------------------------------------------------------------
-prop_validSym :: Property
-prop_validSym = forAll genSym $
+-- | check if generated 'symbols' string is valid.
+prop_validSyms :: Property
+prop_validSyms = forAll genSyms $
   \xs -> all isSym xs
 --------------------------------------------------------------------------------
+-- | check if generated 'single-quotes' string is valid.
 prop_validSingleQ :: Property
 prop_validSingleQ = forAll genSingleQuotes $
   \xs -> case xs of
       ('\'':x:'\'':_)  -> x =/= '\'' .&&. x =/= '\\'
       _                -> property False
 --------------------------------------------------------------------------------
+-- | check if generated 'double-quotes' string is valid.
 prop_validDoubleQ :: Property
 prop_validDoubleQ = forAll genDoubleQuotes $
   \xs -> case xs of
       ('\"':ys)   -> "\"" `isInfixOf` ys && not ("\\" `isInfixOf` ys)
       _           -> False
 --------------------------------------------------------------------------------
-prop_validAlpha :: Property
-prop_validAlpha = forAll genAlpha $
+-- | check if generated 'alphas' string is valid.
+prop_validAlphas :: Property
+prop_validAlphas = forAll genAlphas $
   \x -> (isAlpha $ head x) && (all isIdChar $ tail x)
 --------------------------------------------------------------------------------
-prop_validDigit :: Property
-prop_validDigit = forAll genDigit $
+-- | check if generated 'digits' string is valid.
+prop_validDigits :: Property
+prop_validDigits = forAll genDigits $
   \xs -> let (a, b) = span isDigit xs
          in a =/= [] .&&.
             (case b of
@@ -149,10 +172,12 @@ prop_validDigit = forAll genDigit $
   where notFractional :: String -> Property
         notFractional s = property $ all (not . (`elem` "eE.")) s
 --------------------------------------------------------------------------------
-prop_validSpace :: Property
-prop_validSpace = forAll genSpaces $
+-- | check if generated 'spaces' string is valid.
+prop_validSpaces :: Property
+prop_validSpaces = forAll genSpaces $
   \xs -> all isSpace xs
 --------------------------------------------------------------------------------
+-- | check if generated 'fractional' string is valid.
 prop_validFractional :: Property
 prop_validFractional = forAll genFractional $
   \xs -> let (a, b) = span isDigit xs
@@ -179,30 +204,43 @@ prop_validFractional = forAll genFractional $
           let (a1, a2) = span isDigit xs
           in a1 =/= [] .&&. isExp a2
 --------------------------------------------------------------------------------
+-- | check if generated 'bad' string is valid.
 prop_validBad :: Property
 prop_validBad = forAll genBad $
-  \xs -> let (a1, a2) = span (== '\'') xs
-             (b1, b2) = span (== '\"') xs
-             (c1, c2) = span isSpace xs
-             (d1, d2) = span isSingle xs
-             (e1, e2) = span isSym xs
-             (f1, f2) = span isAlpha xs
-             (g1, g2) = span isDigit xs
-         in (a1 ++ b1 ++ c1 ++ d1 ++ e1 ++ f1 ++ g1) === [] .&&.
-            (all (== xs) [a2, b2, c2, d2, e2, f2, g2])
+  \xs -> let (a1, a2) = span (== '\"') xs
+             (b1, b2) = span isSpace xs
+             (c1, c2) = span isSingle xs
+             (d1, d2) = span isSym xs
+             (e1, e2) = span isAlpha xs
+             (f1, f2) = span isDigit xs
+         in (a1 ++ b1 ++ c1 ++ d1 ++ e1 ++ f1) === [] .&&.
+            (all (== xs) [a2, b2, c2, d2, e2, f2])
 --------------------------------------------------------------------------------
 -- | lex -- properties
+
+-- NOTE: `Lexeme` defined in `Text.Read.Lex`.
+--  data Lexeme
+--      = Char Char
+--      | String String
+--      | Punc String
+--      | Ident String
+--      | Symbol String
+--      | Number Text.Read.Lex.Number
+--      | EOF
+--      deriving (Eq, Show, Read)
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string starting with 1+ 'singles'.
 prop_single :: Property
-prop_single = forAll (appendTo genSingle) $
+prop_single = forAll (appendTo genSingles) $
   \x -> case (lex' x) of
           ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
                               length a1 === 1 .&&.
-                              (property $ all isSingle a1)
+                              (property . isSingle . head $ a1)
           _               -> property False
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string that starts with 1+ 'symbols'.
 prop_sym :: Property
-prop_sym = forAll (appendTo genSym) $
+prop_sym = forAll (appendTo genSyms) $
   \x -> case (lex' x) of
           ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
                              (case a1 of
@@ -213,70 +251,116 @@ prop_sym = forAll (appendTo genSym) $
                                 (y:_)   ->  property $ not $ isSym y)
           _               -> property False
 --------------------------------------------------------------------------------
-prop_singleQuote :: Property
-prop_singleQuote = forAll genSingleQuotes $
+-- | check `lex'` parse of string that starts with a pair of single quotes 
+-- enclosing a non-single quote character.
+--
+-- we use both a post-condition and a model to test this property.  the model 
+-- comes from `read` & `readsPrec` functions in `Read` instance for `Char`.
+--
+-- NOTE: we use `read l1 :: Char` for the following reason.  for example:
+--      `lex' "'p'rem" = [("'p'", "rem")]`
+--      `readsPrec 0 "'p'rem" :: [(Char, String)]
+--          = [('p', "rem")]`
+--       so to compare `lex'` results to `readsPrec` one, we have to convert 
+--       "'p'" to 'p' somewhow.  we use `read` to do that.
+--       `read "'p'" :: Char = 'p'`
+prop_singleQuotes :: Property
+prop_singleQuotes = forAll genSingleQuotes $
   \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
-                             (case a1 of
-                                ('\'':_:'\'':[]) -> property True
-                                _                -> property False)
+          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
           _               -> property False
+  where asRead :: String -> (String, String) -> Property
+        asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(Char, String)]
+                                r1' = read l1 :: Char
+                            in case rs of
+                                ((r1, r2) : []) -> r1 === r1' .&&. r2 === l2
+                                _               -> property False
 --------------------------------------------------------------------------------
-prop_doubleQuote :: Property
-prop_doubleQuote = forAll genDoubleQuotes $
+-- | check `lex'` parse of string that starts with a double quote and has 1+ 
+-- double quotes further on.
+--
+-- we use both a post-condition and a model to test this property.  the model 
+-- comes from `read` & `readsPrec` functions in `Read` instance for `String`.
+--
+-- NOTE: we use `read l1 :: String` for the following reason.  for example:
+--      `lex' "\"prem\"muthedath" = [("\"prem\"", "muthedath")]`
+--      `readsPrec 0 "\"prem\"muthedath" :: [(String, String)]
+--          = [("prem", "muthedath")]`
+--       so to compare `lex'` results to `readsPrec` one, we have to convert 
+--       "\"prem\"" to "prem" somewhow.  we use `read` to do that.
+--       `read "\"prem\"" :: String = "prem"`
+prop_doubleQuotes :: Property
+prop_doubleQuotes = forAll (appendTo genDoubleQuotes) $
   \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
-                             (case a1 of
-                                (_:[])    -> property False
-                                ('\"':ys) -> endDoubleQ ys
-                                _         -> property False)
+          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
           _               -> property False
-  where endDoubleQ :: String -> Property
-        endDoubleQ s = (last s === '\"') .&&.
-                       property (not $ any (== '\"') $ init s)
+  where asRead :: String -> (String, String) -> Property
+        asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(String, String)]
+                                r1' = read l1 :: String
+                            in case rs of
+                                ((r1, r2) : []) -> r1 === r1' .&&. r2 === l2
+                                _               -> property False
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string starting with 1 or more alphabets, followed by 
+-- 0 or more `id` characters.
+--
+-- we use both a post-condition and a model to test this property.  the model 
+-- comes from `read` & `readsPrec` functions in `Read` instance for `Lexeme`.  
+-- since alphabets in haskell typically form identifiers, we use the `Ident`
+-- constructor defined for `Lexeme`.
 prop_alpha :: Property
-prop_alpha = forAll (appendTo genAlpha) $
+prop_alpha = forAll (appendTo genAlphas) $
   \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
-                             (case a1 of
-                                (y:ys)    -> property $
-                                              isAlpha y && all isIdChar ys
-                                _         -> property False)
+          ((a1, a2) : []) -> (a1 ++ a2) === x .&&. asRead x (a1, a2)
           _               -> property False
+  where asRead :: String -> (String, String) -> Property
+        asRead s (l1, l2) = let rs = readsPrec 0 s :: [(Lexeme, String)]
+                            in case rs of
+                                ((Ident r1, r2) : []) -> r1 === l1 .&&. r2 === l2
+                                _                     -> property False
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string starting with 1+ digits, with no fractional.
+-- we use both a post-condition and a model to test this property.  the model 
+-- comes from `read` & `readsPrec` functions in `Read` instance for `Integer`.
 prop_digit :: Property
-prop_digit = forAll genDigit $
+prop_digit = forAll genDigits $
   \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
-                             (case a1 of
-                                []        -> property False
-                                _         -> property $ all isDigit a1) .&&.
-                             (case a2 of
-                                []        -> property True
-                                (y:_)     -> property $ not $ isDigit y)
+          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.asRead x (a1, a2)
           _               -> property False
+  where asRead :: String -> (String, String) -> Property
+        asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(Integer, String)]
+                                r1' = read l1 :: Integer
+                            in case rs of
+                                ((r1, r2) : []) -> r1 === r1' .&&. r2 === l2
+                                _               -> property False
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string that starts with 0 or more space characters.
+-- NOTE: space characters include blanks as well as '\n', '\r', '\t', etc; that 
+-- is, anything that returns `True` from `Data.Char.isSpace`.
 prop_space :: Property
 prop_space = forAll (appendTo genSpaces) $
   \x -> lex' x === (lex' $ dropWhile isSpace x)
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string representing a fractional number.
+-- we use both a post-condition and a model to test this property.  the model 
+-- comes from `read` & `readsPrec` functions in `Read` instance for `Double`.
+--
+-- NOTE: for large numbers, `read` returns `Infinity`, but even then this test 
+-- is pretty good, because it is consistent: if `lex' xs = [(a1, a2)]`, we still 
+-- have `read a1 == r1`, & `a2  == r2`, where `[(r1, r2)] = readsPrec 0 xs`.
 prop_fractional :: Property
 prop_fractional = forAll (appendTo genFractional) $
-  \x -> case (lex' x) of
-          ((a1, a2) : []) -> (a1 ++ a2) === x .&&.
-                             (case a1 of
-                                []        -> property False
-                                _         -> property $
-                                              (isDigit $ head a1) .&&.
-                                              all (`elem` allowables) a1) .&&.
-                             (case a2 of
-                                []        -> property True
-                                (y:_)     -> property . not . isDigit $ y)
-          _               -> property False
-  where allowables :: String
-        allowables = "0123456789eE+-."
+  \xs -> case (lex' xs) of
+            ((a1, a2) : []) -> (a1 ++ a2) === xs .&&. asRead xs (a1, a2)
+            _               -> property False
+  where asRead :: String -> (String, String) -> Property
+        asRead s (l1, l2) = let rs  = readsPrec 0 s :: [(Double, String)]
+                                r1' = read l1 :: Double
+                            in case rs of
+                                ((r1, r2) : []) -> r1 === r1' .&&. r2 === l2
+                                _               -> property False
 --------------------------------------------------------------------------------
+-- | check `lex'` parse of string starting with invalid token.
 prop_bad :: Property
 prop_bad = forAll genBad $
   \xs -> lex' xs === []
