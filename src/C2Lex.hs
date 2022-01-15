@@ -42,7 +42,11 @@ lex' (c:s)
 -- | parse string that contains a `"`.
 -- if supplied string has an `"`, then the substring from start to `"` is 
 -- returned; for example, `lexString "prem\"toss" = [("prem\"", "toss")]`.
--- returns [] for any string supplied to it that does not have an `"`.
+-- returns [], a parse failure, for any string supplied to it that does not have 
+-- an `". this happens because as `lexString` parses the string, it finally 
+-- reaches the end of the string, "", but `lexLitChar "" = []`, a parse failure, 
+-- which results in `lexStrItem "" = []`, again a parse failure, resulting in 
+-- `lexString` returning [].
 lexString               :: ReadS String
 lexString ('"':s)       = [("\"",s)]      -- recurrence terminal condition
 lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
@@ -53,6 +57,7 @@ lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
 -- `lexLitChar  "\\nHello"  =  [("\\n", "Hello")]`
 -- `lexLitChar "prem" = ("p", "rem")`
 -- `lexLitChar` removes any nullables "\\&" present.
+-- `lexLitChar "" = []` => a parse failure
 -- see `lexLitChar` in Data.Char @ https://tinyurl.com/2c72x8ya
 lexStrItem              :: ReadS String
 lexStrItem ('\\':'&':s) = [("\\&",s)]
