@@ -61,7 +61,7 @@ lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
 -- see `lexLitChar` in Data.Char @ https://tinyurl.com/2c72x8ya
 lexStrItem              :: ReadS String
 lexStrItem ('\\':'&':s) = [("\\&",s)]
-lexStrItem ('\\':c:s) | isSpace c
+lexStrItem ('\\':c:s) | isSpace c   -- "//   //prem" => ("//&", "prem")
                         = [("\\&",t) | '\\':t <- [dropWhile isSpace s]]
 lexStrItem a            = lexLitChar a
 
