@@ -52,13 +52,14 @@ lexString ('"':s)       = [("\"",s)]      -- recurrence terminal condition
 lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
                                           (str,u) <- lexString t ]
 -- | parse a string item.
+-- see `lexLitChar` in Data.Char @ https://tinyurl.com/2c72x8ya
 -- `lexLitChar` reads a character as a string, using haskell escape conventions.
 -- `lexLitChar :: ReadS String`
 -- `lexLitChar  "\\nHello"  =  [("\\n", "Hello")]`
 -- `lexLitChar "prem" = ("p", "rem")`
 -- `lexLitChar` removes any nullables "\\&" present.
 -- `lexLitChar "" = []` => a parse failure
--- see `lexLitChar` in Data.Char @ https://tinyurl.com/2c72x8ya
+-- `lexStrItem "" = []` => a parse failure
 lexStrItem              :: ReadS String
 lexStrItem ('\\':'&':s) = [("\\&",s)]
 lexStrItem ('\\':c:s) | isSpace c   -- "//   //prem" => ("//&", "prem")
