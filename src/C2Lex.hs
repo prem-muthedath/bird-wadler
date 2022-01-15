@@ -44,9 +44,9 @@ lex' (c:s)
 -- returned; for example, `lexString "prem\"toss" = [("prem\"", "toss")]`.
 -- returns [], a parse failure, for any string supplied to it that does not have 
 -- an `"`. this happens because as `lexString` parses the string, it finally 
--- reaches the end of the string, "", but `lexLitChar "" = []`, a parse failure, 
--- which results in `lexStrItem "" = []`, again a parse failure, resulting in 
--- `lexString` returning [].
+-- reaches the end of the string, `""`, but `lexLitChar "" = []`, a parse 
+-- failure, which results in `lexStrItem "" = []`, again a parse failure, 
+-- resulting in `lexString` returning [].
 lexString               :: ReadS String
 lexString ('"':s)       = [("\"",s)]      -- recurrence terminal condition
 lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
