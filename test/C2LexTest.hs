@@ -25,7 +25,7 @@ module C2LexTest where
 -- Text.Read @ https://tinyurl.com/36etaccn
 -- Text.Read.Lex @ https://tinyurl.com/2tnj35ky
 import Test.QuickCheck
-import Data.List (isInfixOf)
+import Data.List (isInfixOf, isPrefixOf)
 import Data.Char (isSpace, isAlpha, isDigit)
 import Text.Read.Lex (Lexeme (Ident))
 
@@ -122,19 +122,33 @@ genFractional = do
   return $ a ++ b ++ c ++ [d] ++ e ++ f
 --------------------------------------------------------------------------------
 -- | generate 'bad' string that results in parse failure (i.e., []).
+--
+-- NOTE: we ensure generation of 2 known patterns that result in parse failure:
+--    a) a string that starts with 2 single quotes enclosing a single quote;
+--    b) a string that begins with a double quote but has none further on.
+--
+--    `l1` string generated in the code below ensures a); likewise, `l2` string 
+--    ensures b). we use `frequency` to get a mix of both these patterns.
 genBad :: Gen String
-genBad = (listOf1 ((arbitrary :: Gen Char)
-                  `suchThat`
-                  (\x -> x /= '\"' &&
-                         (not $ isSpace x) &&
-                         (not $ isSingle x) &&
-                         (not $ isSym x) &&
-                         (not $ isAlpha x) &&
-                         (not $ isDigit x)))
-                 `suchThat`
-                 (\xs -> case xs of
-                          ('\'':x:'\'':_) -> x == '\''
-                          _               -> True))
+genBad = do
+  l1 <- replicate 3 <$> ((arbitrary :: Gen Char) `suchThat` isBad)
+  l2 <- listOf1 ((arbitrary :: Gen Char) `suchThat` isBad')
+                `suchThat`
+                (\xs -> case xs of
+                      ('\'':x:'\'':_) -> x == '\''
+                      ('\"':ys)       -> not ("\"" `isInfixOf` ys)
+                      _               -> True)
+  frequency [ (1, return l1)
+            , (1, return l2)
+            ]
+  where isBad :: Char -> Bool
+        isBad x = x /= '\"' && isBad' x
+        isBad' :: Char -> Bool
+        isBad' x = (not $ isSpace x) &&
+                   (not $ isSingle x) &&
+                   (not $ isSym x) &&
+                   (not $ isAlpha x) &&
+                   (not $ isDigit x)
 --------------------------------------------------------------------------------
 -- | append a random string of 0+ length to the supplied random string.
 appendTo :: Gen String -> Gen String
@@ -226,8 +240,16 @@ prop_validBad = forAll genBad $
              (d1, d2) = span isSym xs
              (e1, e2) = span isAlpha xs
              (f1, f2) = span isDigit xs
-         in (a1 ++ b1 ++ c1 ++ d1 ++ e1 ++ f1) === [] .&&.
-            (all (== xs) [a2, b2, c2, d2, e2, f2])
+         in if length xs == 3   -- 3-element string generated should have no ".
+              then (a1 ++ b1 ++ c1 ++ d1 ++ e1 ++ f1) === [] .&&.
+                   (all (== xs) [a2, b2, c2, d2, e2, f2])
+              else (b1 ++ c1 ++ d1 ++ e1 ++ f1) === [] .&&.
+                   (all (== xs) [b2, c2, d2, e2, f2]) .&&.
+                   case (a1, a2) of
+                      ("\"", _)  -> property $ not $ "\"" `isInfixOf` a2
+                      ("", _)    -> a2 === xs
+                      _          -> property False
+
 --------------------------------------------------------------------------------
 -- | lex -- properties
 --------------------------------------------------------------------------------
@@ -254,7 +276,11 @@ prop_single = forAll (appendTo genSingles) $
 -- | check `lex'` parse of string that starts with 1+ 'symbols'.
 prop_sym :: Property
 prop_sym = forAll (appendTo genSyms) $
-  \xs -> case (lex' xs) of
+  \xs -> classify ("\\&" `isPrefixOf` xs) "begins with \\&" $
+         classify ("\\&" `isInfixOf` xs) "has \\&" $
+         classify ("\\" `isInfixOf` xs) "has \\" $
+         classify ("\\" `isPrefixOf` xs) "begins with \\" $
+         case (lex' xs) of
           ((a1, a2) : []) -> (a1 ++ a2) === xs .&&.
                              (case a1 of
                                 []    -> property False
@@ -377,7 +403,9 @@ prop_fractional = forAll (appendTo genFractional) $
 -- | check `lex'` parse of string starting with invalid token.
 prop_bad :: Property
 prop_bad = forAll genBad $
-  \xs -> lex' xs === []
+  \xs -> classify ("'''" `isPrefixOf` xs) "begins with '''" $
+         classify ("\"" `isPrefixOf` xs) "begins with double quote" $
+         lex' xs === []
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | run `quickcheck` on all properties automatically.
