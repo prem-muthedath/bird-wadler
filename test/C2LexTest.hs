@@ -125,7 +125,7 @@ genFractional = do
 -- NOTE: to generate string that will result in parse failure, we eliminate all 
 -- cases we know will result in good parse. this step by itself will go a long 
 -- way, but it is not enough. so in addition to elimination of all good parses, 
--- we ensure generation of 2 known patterns that result in parse failure:
+-- we ensure generation of 2 known patterns that result in parse failures:
 --    a) a string that starts with 2 single quotes enclosing a single quote;
 --    b) a string that begins with a double quote but has none further on.
 --
