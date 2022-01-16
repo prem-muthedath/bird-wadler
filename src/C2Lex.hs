@@ -60,6 +60,7 @@ lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
 -- `lexLitChar` removes any nullables "\\&" present.
 -- `lexLitChar "" = []` => a parse failure
 -- `lexStrItem "" = []` => a parse failure
+-- REF: about `\&`, see /u/ chi @ https://tinyurl.com/bder5brs (so)
 lexStrItem              :: ReadS String
 lexStrItem ('\\':'&':s) = [("\\&",s)]
 lexStrItem ('\\':c:s) | isSpace c   -- "//   //prem" => ("//&", "prem")

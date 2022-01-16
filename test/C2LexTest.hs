@@ -276,6 +276,7 @@ prop_single = forAll (appendTo genSingles) $
           _               -> property False
 --------------------------------------------------------------------------------
 -- | check `lex'` parse of string that starts with 1+ 'symbols'.
+-- REF: about `\&`, see /u/ chi @ https://tinyurl.com/bder5brs (so)
 prop_sym :: Property
 prop_sym = forAll (appendTo genSyms) $
   \xs -> classify ("\\&" `isPrefixOf` xs) "begins with \\&" $
