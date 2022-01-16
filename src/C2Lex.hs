@@ -63,7 +63,7 @@ lexString s             = [(ch++str, u) | (ch,t)  <- lexStrItem s,
 -- REF: about `\&`, see /u/ chi @ https://tinyurl.com/bder5brs (so)
 lexStrItem              :: ReadS String
 lexStrItem ('\\':'&':s) = [("\\&",s)]
-lexStrItem ('\\':c:s) | isSpace c   -- "//   //prem" => ("//&", "prem")
+lexStrItem ('\\':c:s) | isSpace c   -- "\\   \\prem" => ("\\&", "prem")
                         = [("\\&",t) | '\\':t <- [dropWhile isSpace s]]
 lexStrItem a            = lexLitChar a
 
