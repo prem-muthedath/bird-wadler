@@ -43,9 +43,10 @@ intStrToBinStr xs = do
                     Just n  -> Right n
                     Nothing -> Left $ xs <> " is not an Int"
         upper :: Int
+        -- (^) :: (Integral b, Num a) => a -> b -> a
         upper = 2 ^ (32 :: Int) - 1
         toBinStr :: Word32 -> String
-        -- intToDigit :: Int -> Char
+        -- intToDigit :: Int -> Char; `Int` should be in range 0 .. 15.
         toBinStr = map (intToDigit . word32ToInt) . toBinary
         msg :: String
         msg = "out-of-range: " <> xs <> " not in [0, " <> show upper <> "]."
@@ -65,6 +66,7 @@ toBinary = go 32 []
         go 0 acc _ = acc
         go n acc x = go (n - 1) (bit : acc) x'
           -- type annotation in `where` requires `ScopedTypeVariables` extn.
+          -- divMod :: Integral a => a -> a -> (a, a)
           where (x', bit) :: (Word32, Word32) = x `divMod` 2
 --------------------------------------------------------------------------------
 -- | `Int` -> `Word32`, `Word32` -> `Int`
@@ -125,6 +127,8 @@ binStrToDecS xs = foldM step 0 xs
 -- output "decimal" has the same type as "binary" decimal.
 -- REF: code from /u/ willem van onsem @ https://tinyurl.com/32bv54jd (so)
 -- fmap :: Functor f => (a -> b) -> f a -> f b
+-- div :: Integral a => a -> a -> a
+-- mod :: Integral a => a -> a -> a
 binDecToDec :: forall a. (Integral a) => a -> Maybe a
 binDecToDec 0 = Just 0
 binDecToDec i | last' `elem` [0, 1]
@@ -164,11 +168,15 @@ decToBits x | x >= 0 = map (\y -> case y of { True -> 1; False -> 0 }) toBitList
 --------------------------------------------------------------------------------
 -- | convert `Word16` to a list of `Word8`; list has just 2 elements, obviously.
 -- REF: code from /u/ lee duhem @ https://tinyurl.com/2p84ew7d (so)
--- REF: `0xFF` & `0xFF00`: /u/ rayryeng @ https://tinyurl.com/2p9but4r (so)
+-- REF: `0xFF`: /u/ oscar liang @ https://tinyurl.com/5n97nar7
+-- REF: `0xFF00`: /u/ rayryeng @ https://tinyurl.com/2p9but4r (so)
 -- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
 -- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
 -- NOTE: in code below, you need either `0xFF00` mask or `shiftR` but not both, 
 -- because one makes the other redundant: see /u/ rayryeng in `REF` above.
+-- fromIntegral :: (Integral a, Num b) => a -> b
+-- (.&.) :: Data.Bits.Bits a => a -> a -> a
+-- shiftR :: Data.Bits.Bits a => a -> Int -> a
 encodeWord16 :: Word16 -> [Word8]
 encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8 ]
 --------------------------------------------------------------------------------
@@ -176,6 +184,8 @@ encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8 ]
 --------------------------------------------------------------------------------
 -- convert a `Char` to `Word8`.
 -- REF: /u/ Jonathan Prieto-Cubides @ https://tinyurl.com/3jk27h44 (so)
+-- fromIntegral :: (Integral a, Num b) => a -> b
+-- Data.Char.ord :: Char -> Int
 charToWord8 :: Char -> Word8
 charToWord8 = fromIntegral . ord
 --------------------------------------------------------------------------------
