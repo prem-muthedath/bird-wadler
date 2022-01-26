@@ -84,8 +84,8 @@ word32ToInt = fromIntegral
 -- | "Binary" string -> decimal.
 --------------------------------------------------------------------------------
 -- | convert string representing binary to decimal.
--- NOTE: "binary" string considers only +ve values: >= 0.
--- "decimal" here is any number whose type is an instance of `Integral`.
+-- NOTE: "binary" string considers only values >= 0.
+-- "decimal" here is any number whose type is an `Integral` instance.
 -- REF: see /u/ iceman + several examples @ https://tinyurl.com/2p89255z (so)
 binStrToDec :: forall a. (Integral a) => String -> Maybe a
 binStrToDec [] = Nothing
@@ -97,7 +97,7 @@ binStrToDec xs = go 0 xs
                         | otherwise = Nothing
 
 -- | convert string representing binary to decimal using `Data.Bits.shift`.
--- "decimal" here is any number whose type is an instance of `Integral`.
+-- "decimal" here is any number whose type is an `Integral` instance.
 -- REF: /u/ steerio @ https://tinyurl.com/2p89255z (so)
 -- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
 -- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
@@ -117,7 +117,8 @@ binStrToDecS xs = foldM step 0 xs
 --------------------------------------------------------------------------------
 -- | convert a "binary" decimal to decimal.
 -- "binary" decimal has digits 1 or 0.  for example, `11011101 :: Int`.
--- output "decimal" is any number whose type is an instance of `Integral`.
+-- "binary" decimal's type is an `Integral` instance..
+-- output "decimal" has the same type as "binary" decimal.
 -- REF: code from /u/ willem van onsem @ https://tinyurl.com/32bv54jd (so)
 -- fmap :: Functor f => (a -> b) -> f a -> f b
 binDecToDec :: forall a. (Integral a) => a -> Maybe a
@@ -135,9 +136,9 @@ binDecToDecS = binStrToDecS . show
 -- | +ve Decimal -> [bit].
 --------------------------------------------------------------------------------
 -- | convert `decimal -- Int`, `Word` -- to `[bit]`; numbers >=0 considered.
--- "decimal" type instance of both `Integral` & `FiniteBits`; examples include 
--- `Int`, `Word`, etc, that are instances of both `Integral` and `FiniteBits`.
--- returned bits is a list whose elements are either 1 or 0.
+-- "decimal"'s type is an instance of both `Integral` & `FiniteBits`; examples: 
+-- `Int`, `Word`, etc., that are instances of both `Integral` and `FiniteBits`.
+-- `[bit]` has  elements 1 or 0, and they have the same type as decimal.
 -- REF: /u/ cmcdragonkai, /u/ gspr @ https://tinyurl.com/yfte299y (so)
 -- REF: /u/ dfeuer, /u/ thomas m. debuisson @ https://tinyurl.com/s5zwyta3 (so) 
 -- class Bits b => FiniteBits b where
@@ -162,8 +163,8 @@ decToBits x | x >= 0 = map (\y -> case y of { True -> 1; False -> 0 }) toBitList
 -- REF: `0xFF` & `0xFF00`: /u/ rayryeng @ https://tinyurl.com/2p9but4r (so)
 -- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
 -- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
--- NOTE: in code below, you just need either `0xFF00` mask or `shiftR` but not 
--- both, because one makes the other redundant: see /u/ rayryeng in `REF` above.
+-- NOTE: in code below, you need either `0xFF00` mask or `shiftR` but not both, 
+-- because one makes the other redundant: see /u/ rayryeng in `REF` above.
 encodeWord16 :: Word16 -> [Word8]
 encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8 ]
 --------------------------------------------------------------------------------
