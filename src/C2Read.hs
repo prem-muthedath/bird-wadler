@@ -7,7 +7,7 @@
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. next, at GHCi prompt, enter `import C2Read`.
 --  4. you can then invoke any of the top-elevel functions.
---  5. OR instead of step 2,
+--  5. OR instead of steps 2-4,
 --      a) run `cabal v2-repl :bird-wadler-test` to start GHCi;
 --      b) at GHCi prompt, enter `import C2ReadTest`;
 --      c) invoke `C2ReadTest.ghciQC` to run all quickcheck tests.

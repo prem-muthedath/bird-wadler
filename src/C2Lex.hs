@@ -1,7 +1,15 @@
 -- | chapter 2: bird & wadler, introduction to functional programming.
 -- `lex`, Haskell Report, 2010, chapter 9. https://tinyurl.com/2p8wdy3c
 -- see also Text.Read @ https://tinyurl.com/36etaccn
--- usage: load this file in GHCi & invoke any top-level function.
+-- usage:
+--  1. `cd` to `bird-wadler`, this package's top-level directory.
+--  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
+--  3. next, at GHCi prompt, enter `import C2Lex`.
+--  4. you can then invoke any of the top-elevel functions.
+--  5. OR instead of steps 2-4,
+--      a) run `cabal v2-repl :bird-wadler-test` to start GHCi;
+--      b) at GHCi prompt, enter `import C2LexTest`;
+--      c) invoke `C2LexTest.ghciQC` to run all quickcheck tests.
 -- author: Prem Muthedath, NOV 2021.
 
 --------------------------------------------------------------------------------

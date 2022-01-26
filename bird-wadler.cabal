@@ -55,8 +55,9 @@ library
     -- Modules exported by the library.
     exposed-modules:
         C2Lex
-        C2Strings
+        C2String
         C2Char
+        C2Binary
         C2Bool
         C2Num
         C2Show
