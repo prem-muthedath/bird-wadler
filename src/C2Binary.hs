@@ -28,6 +28,8 @@ import Control.Monad (foldM)
 --------------------------------------------------------------------------------
 -- | convert `Int` string to 32-bit binary string.
 -- NOTE: `Int` value in string must be in [0, 2^32 -1] or (0, 4294967295).
+-- `Int` string example: "255".
+-- "binary" string contains only '1' and '0'; 8-bit example: "11001001".
 -- REF: /u/ pat, /u/ delta @ https://tinyurl.com/mpers6md (so)
 intStrToBinStr :: String -> Either String String
 intStrToBinStr xs = do
@@ -85,8 +87,10 @@ word32ToInt = fromIntegral
 --------------------------------------------------------------------------------
 -- | convert string representing binary to decimal.
 -- NOTE: "binary" string considers only values >= 0.
--- "decimal" here is any number whose type is an `Integral` instance.
+-- "binary" string contains only '1' and '0'; example: "11001001".
+-- "decimal"'s type is an `Integral` instance.
 -- REF: see /u/ iceman + several examples @ https://tinyurl.com/2p89255z (so)
+-- author: Prem Muthedath.
 binStrToDec :: forall a. (Integral a) => String -> Maybe a
 binStrToDec [] = Nothing
 binStrToDec xs = go 0 xs
@@ -97,7 +101,7 @@ binStrToDec xs = go 0 xs
                         | otherwise = Nothing
 
 -- | convert string representing binary to decimal using `Data.Bits.shift`.
--- "decimal" here is any number whose type is an `Integral` instance.
+-- "decimal"'s type is an instance of both `Integral` & `FiniteBits`.
 -- REF: /u/ steerio @ https://tinyurl.com/2p89255z (so)
 -- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
 -- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
