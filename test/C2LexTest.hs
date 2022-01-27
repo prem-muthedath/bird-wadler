@@ -136,10 +136,11 @@ genBad = do
   l1 <- replicate 3 <$> ((arbitrary :: Gen Char) `suchThat` isBad)
   l2 <- listOf1 ((arbitrary :: Gen Char) `suchThat` isBad')
                 `suchThat`
-                (\xs -> case xs of
-                      ('\'':x:'\'':_) -> x == '\''
-                      ('\"':ys)       -> not ("\"" `isInfixOf` ys)
-                      _               -> True)
+                (\xs -> length xs /= 3 &&
+                        case xs of
+                          ('\'':x:'\'':_) -> x == '\''
+                          ('\"':ys)       -> not ("\"" `isInfixOf` ys)
+                          _               -> True)
   frequency [ (1, return l1)
             , (1, return l2)
             ]
