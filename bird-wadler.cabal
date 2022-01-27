@@ -99,7 +99,8 @@ test-suite bird-wadler-test
     other-modules:    Common,
                       C2ReadTest,
                       C2BoolTest,
-                      C2LexTest
+                      C2LexTest,
+                      C2BinaryTest
 
     -- LANGUAGE extensions used by modules in this package.
     other-extensions: ScopedTypeVariables,
