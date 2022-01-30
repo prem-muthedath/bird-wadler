@@ -22,7 +22,7 @@ module C2BinaryTest where
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 import Test.QuickCheck
 import Numeric (readInt, showIntAtBase)
-import Data.Char (digitToInt, intToDigit)
+import Data.Char (digitToInt, intToDigit, isAscii, chr)
 import Data.Word (Word8, Word16, Word64)
 import Data.Bits ((.|.), shiftL)
 
@@ -426,6 +426,30 @@ prop_encodeWord16 = forAll (arbitrary :: Gen Word16) $
             let w16Low  :: Word16 = fromIntegral low
                 w16High :: Word16 = shiftL (fromIntegral high :: Word16) 8
             in w16 === (w16High .|. w16Low)
+--------------------------------------------------------------------------------
+-- | check ASCII `Char` -> `Word8` conversion.
+-- isAscii :: Char -> Bool
+-- fromIntegral :: (Integral a, Num b) => a -> b
+-- Data.Char.chr :: Int -> Char
+prop_asciiCharToWord8 :: Property
+prop_asciiCharToWord8 = forAll genAsciiChar $
+  \x -> classify (isAscii x) "ASCII" $
+        case asciiCharToWord8 x of
+            Just w8 -> x === (chr . fromIntegral $ w8)
+            Nothing -> property False
+  where genAsciiChar :: Gen Char
+        genAsciiChar = (arbitrary :: Gen Char) `suchThat` isAscii
+--------------------------------------------------------------------------------
+-- | check non-ASCII `Char` -> `Word8` conversion.
+-- isAscii :: Char -> Bool
+prop_nonAsciiCharToWord8 :: Property
+prop_nonAsciiCharToWord8 = forAll genNonAsciiChar $
+  \x -> classify (not . isAscii $ x) "non-ASCII" $
+        case asciiCharToWord8 x of
+            Nothing -> property True
+            _       -> property False
+  where genNonAsciiChar :: Gen Char
+        genNonAsciiChar = (arbitrary :: Gen Char) `suchThat` (not . isAscii)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | run `quickcheck` on all properties automatically.

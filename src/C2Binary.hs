@@ -21,7 +21,7 @@ module C2Binary where
 -- Data.Word @ https://tinyurl.com/2p8zph45
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 -- Control.Monad @ https://tinyurl.com/mtvj95yx
-import Data.Char (intToDigit, ord)
+import Data.Char (intToDigit, ord, isAscii)
 import Text.Read (readMaybe)
 import Data.Word (Word8, Word16, Word64)
 import Data.Bits (FiniteBits, finiteBitSize, testBit, shift, shiftR, (.&.))
@@ -189,10 +189,14 @@ encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8]
 --------------------------------------------------------------------------------
 -- | `Char` -> `Word8`.
 --------------------------------------------------------------------------------
--- convert a `Char` to `Word8`.
+-- convert an ASCII `Char` to `Word8`.
+-- returns `Nothing` for non-ASCII characters.
 -- REF: /u/ Jonathan Prieto-Cubides @ https://tinyurl.com/3jk27h44 (so)
+-- Prem Muthedath greatly modified the code in REF.
+-- isAscii :: Char -> Bool
 -- fromIntegral :: (Integral a, Num b) => a -> b
 -- Data.Char.ord :: Char -> Int
-charToWord8 :: Char -> Word8
-charToWord8 = fromIntegral . ord
+asciiCharToWord8 :: Char -> Maybe Word8
+asciiCharToWord8 x | isAscii x = Just $ fromIntegral . ord $ x
+                   | otherwise = Nothing
 --------------------------------------------------------------------------------
