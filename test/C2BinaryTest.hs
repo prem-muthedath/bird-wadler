@@ -49,17 +49,17 @@ asInteger :: String -> Integer
 asInteger = read
 
 -- | `True` if string represents a valid number, positive or negative.
+-- we use pattern guards. see /u/ melpomene @ https://tinyurl.com/3vfnxwa7 (so)
 isNum :: String -> Bool
-isNum s = case s of
-  ""          -> False
-  ('0':[])    -> True
-  ('0':_)     -> False
-  ('-':[])    -> False
-  ('-':'0':_) -> False
-  ('-':xs)    -> f xs
-  _           -> f s
-  where f :: String -> Bool
-        f = all (`elem` "0123456789")
+isNum s | ""          <- s = False
+        | ('0':[])    <- s = True
+        | ('0':_)     <- s = False
+        | ('-':[])    <- s = False
+        | ('-':'0':_) <- s = False
+        | ('-':xs)    <- s = f xs
+        | otherwise        = f s
+        where f :: String -> Bool
+              f = all (`elem` "0123456789")
 
 -- | `True` if string does not represent a valid number.
 notNum :: String -> Bool
