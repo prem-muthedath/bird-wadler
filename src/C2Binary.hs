@@ -7,7 +7,11 @@
 --  2. on commandline, run `cabal v2-repl :bird-wadler` to start GHCi.
 --  3. next, at GHCi prompt, enter `import C2Binary`.
 --  4. you can then invoke any of the top-elevel functions.
--- Prem Muthedath, 26 JAN 2022.
+--  5. OR instead of steps 2-4,
+--      a) run `cabal v2-repl :bird-wadler-test` to start GHCi;
+--      b) at GHCi prompt, enter `import C2BinaryTest`;
+--      c) invoke `C2BinaryTest.ghciQC` to run all quickcheck tests.
+-- author: Prem Muthedath, 26 JAN 2022.
 
 --------------------------------------------------------------------------------
 module C2Binary where
