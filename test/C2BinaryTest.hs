@@ -51,13 +51,13 @@ asInteger = read
 -- | `True` if string represents a valid number, positive or negative.
 isNum :: String -> Bool
 isNum s = case s of
-            ""          -> False
-            ('0':[])    -> True
-            ('0':_)     -> False
-            ('-':[])    -> False
-            ('-':'0':_) -> False
-            ('-':xs)    -> f xs
-            _           -> f s
+  ""          -> False
+  ('0':[])    -> True
+  ('0':_)     -> False
+  ('-':[])    -> False
+  ('-':'0':_) -> False
+  ('-':xs)    -> f xs
+  _           -> f s
   where f :: String -> Bool
         f = all (`elem` "0123456789")
 
