@@ -160,8 +160,12 @@ binDecToDecS = binStrToDecS . show
 -- testBit :: Bits a => a -> Int -> Bool
 decToBits :: (FiniteBits a, Integral a, Show a) => a -> [a]
 decToBits x | x >= 0 = map (\y -> case y of { True -> 1; False -> 0 }) toBitList
-            | otherwise = error $ show x <> " is not >= 0."
+            | otherwise = error $ "C2Binary.decToBits => "
+                                  <> "argument " <>  show x <> " is not >= 0."
   where toBitList :: [Bool]
+        -- we `reverse` the list because the 0th bit is the least significant 
+        -- bit, so should be at the right end. for example, `Data.Bits.testBit 
+        -- (254 :: Word8) 0 = False`.
         toBitList = reverse [testBit x i | i <- [0 .. (finiteBitSize x - 1)]]
 --------------------------------------------------------------------------------
 -- | `Word16` -> `[Word8]'
@@ -172,13 +176,11 @@ decToBits x | x >= 0 = map (\y -> case y of { True -> 1; False -> 0 }) toBitList
 -- REF: `0xFF00`: /u/ rayryeng @ https://tinyurl.com/2p9but4r (so)
 -- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
 -- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
--- NOTE: in code below, you need either `0xFF00` mask or `shiftR` but not both, 
--- because one makes the other redundant: see /u/ rayryeng in `REF` above.
 -- fromIntegral :: (Integral a, Num b) => a -> b
 -- (.&.) :: Data.Bits.Bits a => a -> a -> a
 -- shiftR :: Data.Bits.Bits a => a -> Int -> a
 encodeWord16 :: Word16 -> [Word8]
-encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8 ]
+encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8]
 --------------------------------------------------------------------------------
 -- | `Char` -> `Word8`.
 --------------------------------------------------------------------------------
