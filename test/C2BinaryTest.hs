@@ -75,7 +75,7 @@ allBin :: String -> Bool
 allBin [] = False
 allBin s  = all isBin s
 
--- | `True` if all characters in the string are neither '0' nor '1'.
+-- | `True` if there are characters in the string that are neither '0' nor '1'.
 noBin :: String -> Bool
 noBin = not . allBin
 
@@ -158,7 +158,7 @@ genBinDec = do
 genBadBinDec :: Gen Int
 genBadBinDec = (arbitrary :: Gen Int) `suchThat` (\x -> noBin $ show x)
 ------------------------------------------`--------------------------------------
--- | test generators!
+-- | test the generators!
 --------------------------------------------------------------------------------
 -- | check if generated `Int` string is valid.
 prop_validIntStr :: Property
