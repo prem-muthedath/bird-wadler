@@ -92,7 +92,8 @@ binNum = allBin . show
 
 -- | `True` if there are any string characters that are neither '0' nor '1'.
 notBin :: String -> Bool
-notBin = any nonBin
+notBin "" = True
+notBin s  = any nonBin s
 
 -- | `True` if character is non-binary".
 nonBin :: Char -> Bool
@@ -147,22 +148,22 @@ genBadIntStr = do
 --------------------------------------------------------------------------------
 -- | generate "binary" string.
 genBinaryStr :: Gen String
-genBinaryStr = listOf $ elements ['0', '1']
+genBinaryStr = listOf1 $ elements ['0', '1']
 --------------------------------------------------------------------------------
 -- | generate binary string <= 64 in length (i.e., within `Int` range).
 genBinaryStr64 :: Gen String
-genBinaryStr64 = listOf (elements ['0', '1'])
+genBinaryStr64 = listOf1 (elements ['0', '1'])
                  `suchThat`
                  (\bin -> length bin <= 64)
 --------------------------------------------------------------------------------
 -- | generate "bad binary" string.
 genBadBinaryStr :: Gen String
-genBadBinaryStr = listOf1 $ (arbitrary :: Gen Char) `suchThat` nonBin
+genBadBinaryStr = listOf $ (arbitrary :: Gen Char) `suchThat` nonBin
 --------------------------------------------------------------------------------
 -- | generate "bad binary" string with length <= 64 (within `Int` range.
 genBadBinaryStr64 :: Gen String
-genBadBinaryStr64 = listOf1 ((arbitrary :: Gen Char)
-                             `suchThat` nonBin)
+genBadBinaryStr64 = listOf ((arbitrary :: Gen Char)
+                            `suchThat` nonBin)
                     `suchThat` (\bin -> length bin <= 64)
 --------------------------------------------------------------------------------
 -- | generate "binary" decimal.
@@ -210,26 +211,27 @@ prop_validBadIntStr = forAll genBadIntStr $
 prop_validBinaryStr :: Property
 prop_validBinaryStr = forAll genBinaryStr $
   \xs -> classify (allBin xs) "binary" $
-         classify (xs == "") "empty" $
+         classify (xs /= "") "non-empty" $
          classify (xs /= [] && head xs == '0') "starts with 0" $
          classify (xs /= [] && head xs == '1') "starts with 1" $
          classify (length xs > 64) "size > 64" $
-         xs === "" .||. allBin xs
+         allBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "binary" string `64` is valid.
 prop_validBinaryStr64 :: Property
 prop_validBinaryStr64 = forAll genBinaryStr64 $
   \xs -> classify (allBin xs) "binary" $
-         classify (xs == "") "empty" $
+         classify (xs /= "") "non-empty" $
          classify (xs /= [] && head xs == '0') "starts with 0" $
          classify (xs /= [] && head xs == '1') "starts with 1" $
          classify (length xs <= 64) "size <= 64" $
-         length xs <= 64 .&&. (xs === "" .||. allBin xs)
+         length xs <= 64 .&&. allBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "bad binary" is indeed non-binary.
 prop_validBadBinaryStr :: Property
 prop_validBadBinaryStr = forAll genBadBinaryStr $
   \xs -> classify (notBin xs) "non-binary" $
+         classify (xs == "") "empty" $
          classify (length xs > 64) "size > 64" $
          notBin xs
 --------------------------------------------------------------------------------
@@ -237,6 +239,7 @@ prop_validBadBinaryStr = forAll genBadBinaryStr $
 prop_validBadBinaryStr64 :: Property
 prop_validBadBinaryStr64 = forAll genBadBinaryStr64 $
   \xs -> classify (notBin xs) "non-binary" $
+         classify (xs == "") "empty" $
          classify (length xs <= 64) "size <= 64" $
          length xs <= 64 .&&. notBin xs
 --------------------------------------------------------------------------------
@@ -325,13 +328,14 @@ prop_decToBitsFailure = expectFailure $
 prop_binStrToDecNegative :: Property
 prop_binStrToDecNegative = expectFailure $ forAll genBinaryStr $
     \bin -> case (binStrToDec bin :: Maybe Int) of
-              Nothing  -> bin == ""
+              Nothing  -> False
               Just dec -> if dec >= 0 then bin == bin else bin /= bin
 --------------------------------------------------------------------------------
 -- | check "binary" string -> decimal conversion.
 prop_binStrToDec :: Property
 prop_binStrToDec = forAll genBinaryStr $
-  \bin -> classify (bin == "") "empty" $
+  \bin -> classify (bin /= "") "non-empty" $
+          classify (allBin bin) "binary" $
           classify (bin /= [] && head bin == '0') "starts with 0" $
           classify (bin /= [] && head bin == '1') "starts with 1" $
           -- NOTE: due to laziness, the `let` clause is unevaluated until it is 
@@ -343,20 +347,22 @@ prop_binStrToDec = forAll genBinaryStr $
           let exp' :: Integer       = fst . head $ readBinary bin
               act  :: Maybe Integer = binStrToDec bin
           in case act of
-                Nothing   -> bin === ""
+                Nothing   -> property False
                 Just dec  -> dec === exp'
 --------------------------------------------------------------------------------
 -- | check "bad binary" string -> decimal conversion.
 prop_badBinStrToDec :: Property
 prop_badBinStrToDec = forAll genBadBinaryStr $
-  \bad -> classify (bad /= "") "non-empty" $
+  \bad -> classify (bad == "") "empty" $
+          classify (notBin bad) "non-binary" $
           (binStrToDec bad :: Maybe Integer) === Nothing
 --------------------------------------------------------------------------------
 -- | check equivalence of `binStrToDec` & `binStrToDecS`.
 prop_binStrToDecS :: Property
 prop_binStrToDecS = forAll genBinaryStr64 $
   \bin -> classify (length bin <= 64) "has size <= 64" $
-          classify (bin == "") "empty" $
+          classify (bin /= "") "non-empty" $
+          classify (allBin bin) "binary" $
           classify (bin /= [] && head bin == '0') "starts with 0" $
           classify (bin /= [] && head bin == '1') "starts with 1" $
           (binStrToDec bin :: Maybe Int) === (binStrToDecS bin :: Maybe Int)
@@ -365,6 +371,8 @@ prop_binStrToDecS = forAll genBinaryStr64 $
 prop_badBinStrToDecS :: Property
 prop_badBinStrToDecS = forAll genBadBinaryStr64 $
   \bad -> classify (length bad <= 64) "has size <= 64" $
+          classify (bad == "") "empty" $
+          classify (notBin bad) "non-binary" $
           let dec1 :: Maybe Int = binStrToDec bad
               dec2 :: Maybe Int = binStrToDecS bad
           in (dec2 === Nothing) .&&. (dec1 === dec2)
@@ -388,7 +396,9 @@ prop_badBinDecToDec = forAll genBadBinDec $
 prop_binDecToDecS :: Property
 prop_binDecToDecS = forAll genBinDec $
   \bin -> classify (binNum bin) "binary" $
-          (binDecToDec bin :: Maybe Int) === (binDecToDecS bin :: Maybe Int)
+          let dec1 :: Maybe Int = binDecToDec bin
+              dec2 :: Maybe Int = binDecToDecS bin
+          in (dec2 =/= Nothing) .&&. (dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check equivalence of `binDecToDec` & `binDecToDecS` for non-binary decimal.
 prop_badBinDecToDecS :: Property
