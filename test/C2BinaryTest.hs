@@ -35,13 +35,18 @@ import Common (ghciRunner)
 --------------------------------------------------------------------------------
 -- | allowed `Int` upper bound.
 -- maxBound :: Bounded a => a
--- NOTE: this code same as `(2 :: Int) ^ (63 :: Int) - 1` = 9223372036854775807.
+-- NOTE: `Int` is 64 bits in GHC haskell, so we have:
+--    `maxBound :: Int` = `(2 :: Int) ^ (63 :: Int) - 1` = 9223372036854775807.
 upperInt :: Int
 upperInt = maxBound :: Int
 
 -- | convert string -> `Int`.
 asInt :: String -> Int
 asInt = read
+
+-- | convert string -> `Integer`.
+asInteger :: String -> Integer
+asInteger = read
 
 -- | `True` if string represents a valid number, positive or negative.
 isNum :: String -> Bool
@@ -72,22 +77,30 @@ readBinary bin | good      = readInt 2 f g bin
         f    :: (Char -> Bool)  = isBin
         g    :: (Char -> Int)   = Data.Char.digitToInt
 
--- | checks if entire string has binary characters. returns `False` for "".
+-- | `True` if entire string has only binary characters. returns `False` for "".
 allBin :: String -> Bool
 allBin [] = False
 allBin s  = all isBin s
 
--- | `True` if there are characters in the string that are neither '0' nor '1'.
-noBin :: String -> Bool
-noBin = not . allBin
-
--- | checks if character is '0' or '1'.
+-- | `True` if character is '0' or '1'.
 isBin :: Char -> Bool
 isBin = (`elem` ['0', '1'])
 
--- | checks if character is non-binary".
+-- | `True` if the number, an instance of `Num`, is "binary".
+binNum :: (Num a, Show a) => a -> Bool
+binNum = allBin . show
+
+-- | `True` if there are any string characters that are neither '0' nor '1'.
+notBin :: String -> Bool
+notBin = any nonBin
+
+-- | `True` if character is non-binary".
 nonBin :: Char -> Bool
 nonBin = not . isBin
+
+-- | `True` if number is non-binary, i.e., a decimal.
+decimal :: (Num a, Show a) => a -> Bool
+decimal = notBin . show
 --------------------------------------------------------------------------------
 -- | generators.
 --------------------------------------------------------------------------------
@@ -122,9 +135,14 @@ genBadIntStr = do
                            (not . (`elem` "0123456789"))
   x2 :: String <- show <$> ((arbitrary :: Gen Int)
                             `suchThat`
-                            (\x -> x < 0 || x > upperInt))
-  frequency [ (1, return x1)
-            , (1, return x2)
+                            (< 0))
+  x3 :: String <- show <$>
+          chooseInteger ( (fromIntegral upperInt :: Integer) + 1
+                        , (fromIntegral upperInt :: Integer) + 90
+                        )
+  frequency [ (4, return x1)
+            , (2, return x2)
+            , (1, return x3)
             ]
 --------------------------------------------------------------------------------
 -- | generate "binary" string.
@@ -158,7 +176,7 @@ genBinDec = do
 --------------------------------------------------------------------------------
 -- | generate "bad binary" decimal.
 genBadBinDec :: Gen Int
-genBadBinDec = (arbitrary :: Gen Int) `suchThat` (\x -> noBin $ show x)
+genBadBinDec = (arbitrary :: Gen Int) `suchThat` decimal
 ------------------------------------------`--------------------------------------
 -- | test the generators!
 --------------------------------------------------------------------------------
@@ -166,6 +184,9 @@ genBadBinDec = (arbitrary :: Gen Int) `suchThat` (\x -> noBin $ show x)
 prop_validIntStr :: Property
 prop_validIntStr = forAll genIntStr $
   \x -> classify (isNum x) "number" $
+        classify (asInt x == 0) "= 0" $
+        classify (asInt x > 0 && asInt x < upperInt) "in 1 .. 2 ^ 63 - 2" $
+        classify (asInt x == upperInt) "= 2 ^ 63 - 1" $
         (x =/= "") .&&. (asInt x >= 0 .&&. asInt x <= upperInt)
 --------------------------------------------------------------------------------
 -- | check if generated "bad" `Int` string is indeed bad.
@@ -173,11 +194,15 @@ prop_validBadIntStr :: Property
 prop_validBadIntStr = forAll genBadIntStr $
   \x -> classify (x == "") "empty" $
         classify (isNum x) "number" $
+        classify (isNum x && asInteger x < 0) "< 0" $
+        classify (isNum x &&
+          asInteger x > (fromIntegral upperInt :: Integer)) "> 2 ^ 63 - 1" $
         classify (notNum x) "non-number" $
         check x
   where check :: String -> Property
         check x | x == ""   = property True
-                | isNum x   = asInt x < 0 .||. asInt x > upperInt
+                | isNum x   = asInteger x < 0 .||.
+                              asInteger x > (fromIntegral upperInt :: Integer)
                 | notNum x  = property True
                 | otherwise = property False
 --------------------------------------------------------------------------------
@@ -204,41 +229,40 @@ prop_validBinaryStr64 = forAll genBinaryStr64 $
 -- | check if generated "bad binary" is indeed non-binary.
 prop_validBadBinaryStr :: Property
 prop_validBadBinaryStr = forAll genBadBinaryStr $
-  \xs -> classify (noBin xs) "non-binary" $
+  \xs -> classify (notBin xs) "non-binary" $
          classify (length xs > 64) "size > 64" $
-         noBin xs
+         notBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "bad binary" `64` is indeed non-binary.
 prop_validBadBinaryStr64 :: Property
 prop_validBadBinaryStr64 = forAll genBadBinaryStr64 $
-  \xs -> classify (noBin xs) "non-binary" $
+  \xs -> classify (notBin xs) "non-binary" $
          classify (length xs <= 64) "size <= 64" $
-         noBin xs
+         length xs <= 64 .&&. notBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "binary" decimal is valid: >= 0 and has only 1s & 0s.
 prop_validBinDec :: Property
 prop_validBinDec = forAll genBinDec $
-  \bin -> classify (allBin $ show bin) "binary" $
+  \bin -> classify (binNum bin) "binary" $
           classify (bin == 0) "= 0" $
           classify (bin > 0) "> 0" $
-          let bins = show bin
-          in allBin bins .&&. property (bin >= 0)
+          binNum bin .&&. property (bin >= 0)
 --------------------------------------------------------------------------------
 -- | check if generated "bad" binary decimal is indeed non-binary.
 prop_validBadBinDec :: Property
 prop_validBadBinDec = forAll genBadBinDec $
   \bad -> classify (bad < 0) "< 0" $
-          classify (noBin $ show bad) "non-binary" $
-          noBin $ show bad
+          classify (decimal bad) "non-binary" $
+          decimal bad
 --------------------------------------------------------------------------------
 -- | properties.
 --------------------------------------------------------------------------------
--- | check `Int` string -> "binary` string conversion.
+-- | check `Int` string -> "binary" string conversion.
 prop_intStrToBinStr :: Property
 prop_intStrToBinStr = forAll genIntStr $
   \x -> classify (isNum x) "number" $
-        classify (x == "0") "0" $
-        classify (x == show upperInt) "2^63 - 1" $
+        classify (x == "0") "= 0" $
+        classify (x == show upperInt) "= 2^63 - 1" $
         case intStrToBinStr x of
             Left _    -> property False
             Right bin -> check x bin
@@ -260,7 +284,8 @@ prop_badIntStrToBinStr = forAll genBadIntStr $
 -- | check `Word64` -> `[Word64]` binary, "decimal" -> "bits" conversions.
 prop_toBinary :: Property
 prop_toBinary = forAll genWord64 $
-  \x -> classify (x == 0) "zero" $
+  \x -> classify (x == 0) "= 0" $
+        classify (x > 0) "> 0" $
         toBinary x === decToBits x
   where genWord64 :: Gen Word64
         genWord64 = (arbitrary :: Gen Word64) `suchThat` (>= 0)
@@ -270,7 +295,15 @@ prop_decToBitsFailure :: Property
 prop_decToBitsFailure = expectFailure $
   -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing 
   -- test case` message that pops when we use  `=/=`, as it returns `Property`.
-  forAll genBadDecimal $ \x -> decToBits x /= []
+  --
+  -- also, if the expected failures occur, then quickcheck does not show the 
+  -- classifications. yet i have kept them there, because in case the test 
+  -- fails, i.e., no errors, then the classifications will help the analysis.
+  forAll genBadDecimal $
+    \x -> classify (x < 0) "< 0" $
+          classify (x == 0) "= 0" $
+          classify (x > 0) "> 0" $
+          decToBits x /= []
   where genBadDecimal :: Gen Int
         genBadDecimal = (arbitrary :: Gen Int) `suchThat` (>= (-100))
 --------------------------------------------------------------------------------
@@ -286,6 +319,9 @@ prop_decToBitsFailure = expectFailure $
 --
 -- NOTE: same problem pops up if you use `read x :: Int` to read a long binary 
 -- string. again, if you use `read x :: Integer` instead, the problem goes away.
+--
+-- the conditional check in this property is contrived; i wrote it this way 
+-- because i wanted quickcheck to show the "binary" input for the failure case.
 prop_binStrToDecNegative :: Property
 prop_binStrToDecNegative = expectFailure $ forAll genBinaryStr $
     \bin -> case (binStrToDec bin :: Maybe Int) of
@@ -319,7 +355,8 @@ prop_badBinStrToDec = forAll genBadBinaryStr $
 -- | check equivalence of `binStrToDec` & `binStrToDecS`.
 prop_binStrToDecS :: Property
 prop_binStrToDecS = forAll genBinaryStr64 $
-  \bin -> classify (bin == "") "empty" $
+  \bin -> classify (length bin <= 64) "has size <= 64" $
+          classify (bin == "") "empty" $
           classify (bin /= [] && head bin == '0') "starts with 0" $
           classify (bin /= [] && head bin == '1') "starts with 1" $
           (binStrToDec bin :: Maybe Int) === (binStrToDecS bin :: Maybe Int)
@@ -327,14 +364,15 @@ prop_binStrToDecS = forAll genBinaryStr64 $
 -- | check equivalence of `binStrToDec` & `binStrToDecS` for non-binary string.
 prop_badBinStrToDecS :: Property
 prop_badBinStrToDecS = forAll genBadBinaryStr64 $
-  \bad -> let dec1 :: Maybe Int = binStrToDec bad
+  \bad -> classify (length bad <= 64) "has size <= 64" $
+          let dec1 :: Maybe Int = binStrToDec bad
               dec2 :: Maybe Int = binStrToDecS bad
           in (dec2 === Nothing) .&&. (dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check "binary" decimal -> decimal conversion.
 prop_binDecToDec :: Property
 prop_binDecToDec = forAll genBinDec $
-  \bin -> classify (allBin $ show bin) "binary" $
+  \bin -> classify (binNum  bin) "binary" $
           let dec2 :: Int  = fst . head . readBinary $ show bin
           in case (binDecToDec bin :: Maybe Int) of
                 Nothing   -> property False
@@ -343,25 +381,27 @@ prop_binDecToDec = forAll genBinDec $
 -- | check "bad binary" decimal -> decimal conversion.
 prop_badBinDecToDec :: Property
 prop_badBinDecToDec = forAll genBadBinDec $
-  \bad -> classify (noBin $ show bad) "non-binary" $
+  \bad -> classify (decimal bad) "non-binary" $
           (binDecToDec bad :: Maybe Int) === Nothing
 --------------------------------------------------------------------------------
 -- | check equivalence of `binDecToDec` & `binDecToDecS` for binary decimal.
 prop_binDecToDecS :: Property
 prop_binDecToDecS = forAll genBinDec $
-  \bin -> classify (allBin $ show bin) "binary" $
+  \bin -> classify (binNum bin) "binary" $
           (binDecToDec bin :: Maybe Int) === (binDecToDecS bin :: Maybe Int)
 --------------------------------------------------------------------------------
 -- | check equivalence of `binDecToDec` & `binDecToDecS` for non-binary decimal.
 prop_badBinDecToDecS :: Property
 prop_badBinDecToDecS = forAll genBadBinDec $
-  \bad -> classify (noBin $ show bad) "non-binary" $
+  \bad -> classify (decimal bad) "non-binary" $
           let dec1 :: Maybe Int = binDecToDec bad
               dec2 :: Maybe Int = binDecToDecS bad
           in (dec2 === Nothing) .&&. (dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check `Word16` -> `Word8` conversion.
 -- REF: merge 2 bytes to 1: /u/ hdiederik @ https://tinyurl.com/2p88d8ex (so)
+-- REF: bitwise operations: https://en.wikipedia.org/wiki/Bitwise_operation
+-- REF: logical shifts: https://www.interviewcake.com/concept/java/bit-shift
 -- fromIntegral :: (Integral a, Num b) => a -> b
 -- shiftL :: Data.Bits.Bits a => a -> Int -> a
 -- (.|.) :: Data.Bits.Bits a => a -> a -> a
