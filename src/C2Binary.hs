@@ -19,23 +19,24 @@ module C2Binary where
 -- Control.Monad @ https://tinyurl.com/mtvj95yx
 import Data.Char (intToDigit, ord)
 import Text.Read (readMaybe)
-import Data.Word (Word8, Word16, Word32)
+import Data.Word (Word8, Word16, Word64)
 import Data.Bits (FiniteBits, finiteBitSize, testBit, shift, shiftR, (.&.))
 import Control.Monad (foldM)
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | `Int` string -> Binary string.
 --------------------------------------------------------------------------------
--- | convert `Int` string to 32-bit binary string.
--- NOTE: `Int` value in string must be in [0, 2^32 -1] or (0, 4294967295).
--- `Int` string example: "255".
--- "binary" string contains only '1' and '0'; 8-bit example: "11001001".
+-- | convert `Int` string to 64-bit binary string.
 -- REF: /u/ pat, /u/ delta @ https://tinyurl.com/mpers6md (so)
+-- NOTES:
+--  1. allowed `Int` range:  0 .. 2^63 -1 or 0 .. 9223372036854775807.
+--  2. `Int` string example: "255".
+--  3. "binary" string contains only '1' and '0'; 8-bit example: "11001001".
 intStrToBinStr :: String -> Either String String
 intStrToBinStr xs = do
     num :: Int <- toInt
     if num >= 0 && num <= upper
-       then Right $ toBinStr $ intToWord32 num
+       then Right $ toBinStr $ intToWord64 num
        else Left msg
   where toInt :: Either String Int
         -- readMaybe :: Read a => String -> Maybe a
@@ -43,20 +44,20 @@ intStrToBinStr xs = do
                     Just n  -> Right n
                     Nothing -> Left $ xs <> " is not an Int"
         upper :: Int
-        -- (^) :: (Integral b, Num a) => a -> b -> a
-        upper = 2 ^ (32 :: Int) - 1
-        toBinStr :: Word32 -> String
+        -- maxBound :: Bounded a => a
+        upper = maxBound :: Int   -- same as (2 :: Int) ^ (63 :: Int) - 1
+        toBinStr :: Word64 -> String
         -- intToDigit :: Int -> Char; `Int` should be in range 0 .. 15.
-        toBinStr = map (intToDigit . word32ToInt) . toBinary
+        toBinStr = map (intToDigit . word64ToInt) . toBinary
         msg :: String
-        msg = "out-of-range: " <> xs <> " not in [0, " <> show upper <> "]."
+        msg = "out-of-range: " <> xs <> " not in 0 .. " <> show upper <> "."
 
--- | generate 32-bit binary representation of a `Word32` as a `[Word32]`.
+-- | generate 64-bit binary representation of a `Word64` as a `[Word64]`.
 -- REF: /u/ pat, /u/ delta @ https://tinyurl.com/mpers6md (so)
 -- decimal-to-binary conversion: https://tinyurl.com/ycktc6va (wikihow.com)
-toBinary :: Word32 -> [Word32]
-toBinary = go 32 []
-  where go :: Int -> [Word32] -> Word32 -> [Word32]
+toBinary :: Word64 -> [Word64]
+toBinary = go 64 []
+  where go :: Int -> [Word64] -> Word64 -> [Word64]
         -- NOTE:
         --  1. we continue the recursion until `n == 0`, because we want the 
         --     leading zeroes in the binary representation, which means you 
@@ -67,23 +68,23 @@ toBinary = go 32 []
         go n acc x = go (n - 1) (bit : acc) x'
           -- type annotation in `where` requires `ScopedTypeVariables` extn.
           -- divMod :: Integral a => a -> a -> (a, a)
-          where (x', bit) :: (Word32, Word32) = x `divMod` 2
+          where (x', bit) :: (Word64, Word64) = x `divMod` 2
 --------------------------------------------------------------------------------
--- | `Int` -> `Word32`, `Word32` -> `Int`
+-- | `Int` -> `Word64`, `Word64` -> `Int`
 --------------------------------------------------------------------------------
--- | convert `Int` to `Word32`
+-- | convert `Int` to `Word64`
 -- fromIntegral :: (Integral a, Num b) => a -> b
--- `Word32` has a `Num` instance.
+-- `Word64` has a `Num` instance.
 -- REF: /u/ hao @ https://tinyurl.com/fv963jf8 (so)
-intToWord32 :: Int -> Word32
-intToWord32 = fromIntegral
+intToWord64 :: Int -> Word64
+intToWord64 = fromIntegral
 
--- | convert `Word32` to `Int`.
+-- | convert `Word64` to `Int`.
 -- fromIntegral :: (Integral a, Num b) => a -> b
--- `Word32` has an `Integral` instance.
+-- `Word64` has an `Integral` instance.
 -- REF: /u/ astiefel @ https://tinyurl.com/s5zwyta3 (so)
-word32ToInt :: Word32 -> Int
-word32ToInt = fromIntegral
+word64ToInt :: Word64 -> Int
+word64ToInt = fromIntegral
 --------------------------------------------------------------------------------
 -- | "Binary" string -> decimal.
 --------------------------------------------------------------------------------

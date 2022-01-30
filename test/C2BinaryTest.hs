@@ -23,7 +23,7 @@ module C2BinaryTest where
 import Test.QuickCheck
 import Numeric (readInt, showIntAtBase)
 import Data.Char (digitToInt, intToDigit)
-import Data.Word (Word8, Word16, Word32)
+import Data.Word (Word8, Word16, Word64)
 import Data.Bits ((.|.), shiftL)
 
 import C2Binary
@@ -34,8 +34,10 @@ import Common (ghciRunner)
 -- | common functions.
 --------------------------------------------------------------------------------
 -- | allowed `Int` upper bound.
+-- maxBound :: Bounded a => a
+-- NOTE: this code same as `(2 :: Int) ^ (63 :: Int) - 1` = 9223372036854775807.
 upperInt :: Int
-upperInt = (2 :: Int) ^ (32 :: Int) - 1
+upperInt = maxBound :: Int
 
 -- | convert string -> `Int`.
 asInt :: String -> Int
@@ -89,7 +91,7 @@ nonBin = not . isBin
 --------------------------------------------------------------------------------
 -- | generators.
 --------------------------------------------------------------------------------
--- | generate `Int` string, with generated values in range 0 .. 4294967295.
+-- | generate `Int` string, with values in range 0 .. 9223372036854775807.
 -- NOTE: as documentation, the 1st version (very crude!) listed below.
 --    genIntStr = do
 --      x <- (arbitrary :: Gen Char)
@@ -166,7 +168,7 @@ prop_validIntStr = forAll genIntStr $
   \x -> classify (isNum x) "number" $
         (x =/= "") .&&. (asInt x >= 0 .&&. asInt x <= upperInt)
 --------------------------------------------------------------------------------
--- | check if generated "bad" `Int` string is valid.
+-- | check if generated "bad" `Int` string is indeed bad.
 prop_validBadIntStr :: Property
 prop_validBadIntStr = forAll genBadIntStr $
   \x -> classify (x == "") "empty" $
@@ -236,7 +238,7 @@ prop_intStrToBinStr :: Property
 prop_intStrToBinStr = forAll genIntStr $
   \x -> classify (isNum x) "number" $
         classify (x == "0") "0" $
-        classify (x == show upperInt) "2^32 - 1" $
+        classify (x == show upperInt) "2^63 - 1" $
         case intStrToBinStr x of
             Left _    -> property False
             Right bin -> check x bin
@@ -255,13 +257,13 @@ prop_badIntStrToBinStr = forAll genBadIntStr $
             Left _  -> property True
             Right _ -> property False
 --------------------------------------------------------------------------------
--- | check `Word32` -> `[Word32]` binary, "decimal" -> "bits" conversions.
+-- | check `Word64` -> `[Word64]` binary, "decimal" -> "bits" conversions.
 prop_toBinary :: Property
-prop_toBinary = forAll genWord32 $
+prop_toBinary = forAll genWord64 $
   \x -> classify (x == 0) "zero" $
         toBinary x === decToBits x
-  where genWord32 :: Gen Word32
-        genWord32 = (arbitrary :: Gen Word32) `suchThat` (>= 0)
+  where genWord64 :: Gen Word64
+        genWord64 = (arbitrary :: Gen Word64) `suchThat` (>= 0)
 --------------------------------------------------------------------------------
 -- | check `expectFailure` in "decimal" -> "bits" conversion.
 prop_decToBitsFailure :: Property
