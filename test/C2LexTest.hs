@@ -25,7 +25,7 @@ module C2LexTest where
 -- Text.Read @ https://tinyurl.com/36etaccn
 -- Text.Read.Lex @ https://tinyurl.com/2tnj35ky
 import Test.QuickCheck
-import Data.List (isInfixOf, isPrefixOf)
+import Data.List (isInfixOf, isPrefixOf, elemIndices)
 import Data.Char (isSpace, isAlpha, isDigit)
 import Text.Read.Lex (Lexeme (Ident))
 
@@ -175,16 +175,26 @@ prop_validSyms = forAll genSyms $
 -- | check if generated 'single-quotes' string is valid.
 prop_validSingleQ :: Property
 prop_validSingleQ = forAll genSingleQuotes $
-  \xs -> case xs of
-      ('\'':x:'\'':_)  -> x =/= '\'' .&&. x =/= '\\'
-      _                -> property False
+  \xs -> classify (length xs >= 3) "with size >= 3" $
+         classify (head xs == '\'') "start with '" $
+         classify (head (tail xs) /= '\'') "do not start with ''" $
+         classify (length (elemIndices '\'' xs) == 2) "have 2 '" $
+         classify (length (elemIndices '\'' xs) > 2) "have > 2 '" $
+         case xs of
+            ('\'':x:'\'':_)  -> x =/= '\'' .&&. x =/= '\\'
+            _                -> property False
 --------------------------------------------------------------------------------
 -- | check if generated 'double-quotes' string is valid.
 prop_validDoubleQ :: Property
 prop_validDoubleQ = forAll genDoubleQuotes $
-  \xs -> case xs of
-      ('\"':ys)   -> "\"" `isInfixOf` ys && not ("\\" `isInfixOf` ys)
-      _           -> False
+  \xs -> classify (length xs > 1) "with size > 1" $
+         classify (head xs == '\"') "start with \"" $
+         classify (head (tail xs) == '\"') "start with \"\"" $
+         classify (length (elemIndices '\"' xs) == 2) "have 2 \"" $
+         classify (length (elemIndices '\"' xs) > 2) "have > 2 \"" $
+         case xs of
+            ('\"':ys)   -> "\"" `isInfixOf` ys && not ("\\" `isInfixOf` ys)
+            _           -> False
 --------------------------------------------------------------------------------
 -- | check if generated 'alphas' string is valid.
 prop_validAlphas :: Property
@@ -280,10 +290,10 @@ prop_single = forAll (appendTo genSingles) $
 -- REF: about `\&`, see /u/ chi @ https://tinyurl.com/bder5brs (so)
 prop_sym :: Property
 prop_sym = forAll (appendTo genSyms) $
-  \xs -> classify ("\\&" `isPrefixOf` xs) "begins with \\&" $
-         classify ("\\&" `isInfixOf` xs) "has \\&" $
-         classify ("\\" `isInfixOf` xs) "has \\" $
-         classify ("\\" `isPrefixOf` xs) "begins with \\" $
+  \xs -> classify ("\\&" `isPrefixOf` xs) "begin with \\&" $
+         classify ("\\&" `isInfixOf` xs) "have \\&" $
+         classify ("\\" `isInfixOf` xs) "have \\" $
+         classify ("\\" `isPrefixOf` xs) "begin with \\" $
          case (lex' xs) of
           ((a1, a2) : []) -> (a1 ++ a2) === xs .&&.
                              (case a1 of
@@ -407,8 +417,8 @@ prop_fractional = forAll (appendTo genFractional) $
 -- | check `lex'` parse of string starting with invalid token.
 prop_bad :: Property
 prop_bad = forAll genBad $
-  \xs -> classify ("'''" `isPrefixOf` xs) "begins with '''" $
-         classify ("\"" `isPrefixOf` xs) "begins with double quote" $
+  \xs -> classify ("'''" `isPrefixOf` xs) "begin with '''" $
+         classify ("\"" `isPrefixOf` xs) "begin with double quote" $
          lex' xs === []
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
