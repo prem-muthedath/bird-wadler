@@ -160,7 +160,7 @@ genBinaryStr64 = listOf1 (elements ['0', '1'])
 genBadBinaryStr :: Gen String
 genBadBinaryStr = listOf $ (arbitrary :: Gen Char) `suchThat` nonBin
 --------------------------------------------------------------------------------
--- | generate "bad binary" string with length <= 64 (within `Int` range.
+-- | generate "bad binary" string with length <= 64 (within `Int` range).
 genBadBinaryStr64 :: Gen String
 genBadBinaryStr64 = listOf ((arbitrary :: Gen Char)
                             `suchThat` nonBin)

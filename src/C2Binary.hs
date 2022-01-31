@@ -187,7 +187,7 @@ decToBits x | x >= 0 = map (\y -> case y of { True -> 1; False -> 0 }) toBitList
 encodeWord16 :: Word16 -> [Word8]
 encodeWord16 x = map fromIntegral [ x .&. 0xFF, (x .&. 0xFF00) `shiftR` 8]
 --------------------------------------------------------------------------------
--- | `Char` -> `Word8`.
+-- | ASCII `Char` -> `Word8`.
 --------------------------------------------------------------------------------
 -- convert an ASCII `Char` to `Word8`.
 -- returns `Nothing` for non-ASCII characters.
