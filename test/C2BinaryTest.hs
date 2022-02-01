@@ -22,7 +22,7 @@ module C2BinaryTest where
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 import Test.QuickCheck
 import Numeric (readInt, showIntAtBase)
-import Data.Char (digitToInt, intToDigit, isAscii, chr)
+import Data.Char (isDigit, digitToInt, intToDigit, isAscii, chr)
 import Data.Word (Word8, Word16, Word64)
 import Data.Bits ((.|.), shiftL)
 
@@ -59,7 +59,7 @@ isNum s | ""          <- s = False
         | ('-':xs)    <- s = f xs
         | otherwise        = f s
         where f :: String -> Bool
-              f = all (`elem` "0123456789")
+              f = all isDigit
 
 -- | `True` if string does not represent a valid number.
 notNum :: String -> Bool
@@ -128,12 +128,14 @@ genIntStr = do
             , (20, return $ show num2)
             ]
 --------------------------------------------------------------------------------
+-- | generate a non-digit character. non-digit means not any in '0' .. '9'.
+genNonDigit :: Gen Char
+genNonDigit = (arbitrary :: Gen Char) `suchThat` (not . isDigit)
+--------------------------------------------------------------------------------
 -- | generate "bad" `Int` string.
 genBadIntStr :: Gen String
 genBadIntStr = do
-  x1 :: String <- listOf $ (arbitrary :: Gen Char)
-                           `suchThat`
-                           (not . (`elem` "0123456789"))
+  x1 :: String <- listOf genNonDigit
   x2 :: String <- show <$> ((arbitrary :: Gen Int)
                             `suchThat`
                             (< 0))
@@ -144,6 +146,19 @@ genBadIntStr = do
   frequency [ (4, return x1)
             , (2, return x2)
             , (1, return x3)
+            ]
+--------------------------------------------------------------------------------
+-- | generate a non-number.
+genNonNum :: Gen String
+genNonNum = do
+  x1 :: String <- listOf1 (elements "-0")
+                  `suchThat`
+                  (\xs -> length xs > 1 && length xs <= 64)
+  x2 :: String <- listOf genNonDigit
+                  `suchThat`
+                  (\xs -> length xs <= 64)
+  frequency [ (1, return x1)
+            , (2, return x2)
             ]
 --------------------------------------------------------------------------------
 -- | generate "binary" string.
@@ -206,6 +221,36 @@ prop_validBadIntStr = forAll genBadIntStr $
                               asInteger x > (fromIntegral upperInt :: Integer)
                 | notNum x  = property True
                 | otherwise = property False
+--------------------------------------------------------------------------------
+-- | check if generated "non-number" is indeed a non-number.
+-- NOTE: we do not have a similiar test for a number generator, because it is so 
+-- simple: `arbitrary :: Gen Int`.
+prop_validNonNum :: Property
+prop_validNonNum = forAll genNonNum $
+  \s  -> classify (s == []) "empty" $
+         classify (startsWith00 s) "start with 00" $
+         classify (startsWithMinus s) "start with -" $
+         classify (startsWithMinus0 s) "start with -0" $
+         case s of
+          []          -> property True
+          ('0':[])    -> property False
+          ('0':x:_)   -> x === '0' .||. property (notDigit x)
+          ('-':[])    -> property True
+          ('-':x:_)   -> x === '0' .||. property (notDigit x)
+          _           -> property $ all notDigit s
+  where notDigit :: Char -> Bool
+        notDigit x = not $ x `elem` "123456789"
+        startsWith00 :: String -> Bool
+        startsWith00 []      = False
+        startsWith00 (_:[])  = False
+        startsWith00 (x:y:_) = x == '0' && y == '0'
+        startsWithMinus :: String -> Bool
+        startsWithMinus []     = False
+        startsWithMinus (x:_)  = x == '-'
+        startsWithMinus0 :: String -> Bool
+        startsWithMinus0 []      = False
+        startsWithMinus0 (_:[])  = False
+        startsWithMinus0 (x:y:_) = x == '-' && y == '0'
 --------------------------------------------------------------------------------
 -- | check if generated "binary" string is valid.
 prop_validBinaryStr :: Property
@@ -283,6 +328,19 @@ prop_badIntStrToBinStr = forAll genBadIntStr $
         case intStrToBinStr x of
             Left _  -> property True
             Right _ -> property False
+--------------------------------------------------------------------------------
+-- | check if `isNum` works for both numbers as well as non-numbers.
+-- check for numbers.
+prop_validIsNum :: Property
+prop_validIsNum = forAll (arbitrary :: Gen Int) $
+  \num  -> classify (num == 0) "0" $
+           classify (num < 0) "< 0" $
+           classify (num > 0) "> 0" $
+           isNum $ show num
+
+-- check for non-numbers.
+prop_notIsNum :: Property
+prop_notIsNum = forAll genNonNum $ not . isNum
 --------------------------------------------------------------------------------
 -- | check `Word64` -> `[Word64]` binary, "decimal" -> "bits" conversions.
 prop_toBinary :: Property
