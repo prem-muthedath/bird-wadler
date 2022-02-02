@@ -16,6 +16,7 @@
 module C2BinaryTest where
 --------------------------------------------------------------------------------
 -- Test.QuickCheck @ https://tinyurl.com/2p9s9ets
+-- Text.Read @ https://tinyurl.com/36etaccn
 -- Numeric (base 4.14) @ https://tinyurl.com/3kvs3fha
 -- Data.Char @ https://tinyurl.com/2c72x8ya
 -- Data.Word @ https://tinyurl.com/2p8zph45
@@ -154,14 +155,20 @@ genNonNum :: Gen String
 genNonNum = do
   x1 :: String <- listOf1 (elements "-0")
                   `suchThat`
+                  -- make sure we return a string of at least length 2. this 
+                  -- will ensure that we never generate a "0", a valid number, 
+                  -- but we can expect to generate a "00", a non-number.
+                  -- "<= 64" ensures that we stay within `Int` range.
                   (\xs -> length xs > 1 && length xs <= 64)
   x2 :: String <- listOf ((arbitrary :: Gen Char) `suchThat` isDigit)
                   `suchThat`
+                  -- "<= 64" ensures that we stay within `Int` range.
                   (\xs -> length xs <= 64)
   x3 :: String <- listOf genNonDigit
                   `suchThat`
+                  -- "<= 64" ensures that we stay within `Int` range.
                   (\xs -> length xs <= 64)
-  frequency [ (1, return $ x1 ++ x2)
+  frequency [ (1, return $ x1 ++ x2) -- returns, on purpose, string of size >= 2.
             , (2, return x3)
             ]
 --------------------------------------------------------------------------------
@@ -247,6 +254,10 @@ prop_validBadIntStr = forAll genBadIntStr $
 --
 -- NOTE: we use `>`, instead of `>=`, because all our values are expected to be 
 -- non-numbers. had this not been the case, we will need to use `>=`.
+--
+-- NOTE: also, when we have numbers, `genNonNUm` string always returns a string 
+-- of at least size 2. this is done on purpose, so that we never get a "0", 
+-- which is a valid number, but we can expect to find "00", a non-number.
 prop_validNonNum :: Property
 prop_validNonNum = forAll genNonNum $
   \s  -> classify (s == []) "empty" $
