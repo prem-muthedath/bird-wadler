@@ -21,6 +21,7 @@ module C2BinaryTest where
 -- Data.Word @ https://tinyurl.com/2p8zph45
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 import Test.QuickCheck
+import Text.Read (readMaybe)
 import Numeric (readInt, showIntAtBase)
 import Data.Char (isDigit, digitToInt, intToDigit, isAscii, chr)
 import Data.Word (Word8, Word16, Word64)
@@ -154,11 +155,14 @@ genNonNum = do
   x1 :: String <- listOf1 (elements "-0")
                   `suchThat`
                   (\xs -> length xs > 1 && length xs <= 64)
-  x2 :: String <- listOf genNonDigit
+  x2 :: String <- listOf ((arbitrary :: Gen Char) `suchThat` isDigit)
                   `suchThat`
                   (\xs -> length xs <= 64)
-  frequency [ (1, return x1)
-            , (2, return x2)
+  x3 :: String <- listOf genNonDigit
+                  `suchThat`
+                  (\xs -> length xs <= 64)
+  frequency [ (1, return $ x1 ++ x2)
+            , (2, return x3)
             ]
 --------------------------------------------------------------------------------
 -- | generate "binary" string.
@@ -225,22 +229,36 @@ prop_validBadIntStr = forAll genBadIntStr $
 -- | check if generated "non-number" is indeed a non-number.
 -- NOTE: we do not have a similiar test for a number generator, because it is so 
 -- simple: `arbitrary :: Gen Int`.
+--
+-- we use `readMaybe` as our "model", but `readMaybe "0023" :: Int` returns 23, 
+-- but over here, we want it to return `Nothing`, because we consider 0023 as a 
+-- non-number.  likewise, `readMaybe "-023" :: Int` returns -23, but, again, we 
+-- want it to return `Nothing` here, because -023 is a non-number for us.
+--
+-- so clearly there is a mismatch with what we want and what our model gives, 
+-- and this mismatch ONLY occurs when we have leading zeroes.  in such cases, 
+-- `readMaybe` ignores the leading zeroes and reads the rest. for all other 
+-- cases, what `readMaybe` returns matches what we define as a non-number.
+--
+-- so to use `readMaybe` as our model, in cases when `readMaybe` succeeds, we do 
+-- a length comparision of the original string with the string representation of 
+-- the number `readMaybe` returns. in case of leading zeroes, this means that 
+-- the read value will always be shorter than the original. this seems to work! 
+--
+-- NOTE: we use `>`, instead of `>=`, because all our values are expected to be 
+-- non-numbers. had this not been the case, we will need to use `>=`.
 prop_validNonNum :: Property
 prop_validNonNum = forAll genNonNum $
   \s  -> classify (s == []) "empty" $
          classify (startsWith00 s) "start with 00" $
          classify (startsWithMinus s) "start with -" $
          classify (startsWithMinus0 s) "start with -0" $
-         case s of
-          []          -> property True
-          ('0':[])    -> property False
-          ('0':x:_)   -> x === '0' .||. property (notDigit x)
-          ('-':[])    -> property True
-          ('-':x:_)   -> x === '0' .||. property (notDigit x)
-          _           -> property $ all notDigit s
-  where notDigit :: Char -> Bool
-        notDigit x = not $ x `elem` "123456789"
-        startsWith00 :: String -> Bool
+         case readMaybe s :: Maybe Int of
+            Just num  -> if length s > length (show num)
+                            then property True
+                            else property False
+            Nothing   -> property True
+  where startsWith00 :: String -> Bool
         startsWith00 []      = False
         startsWith00 (_:[])  = False
         startsWith00 (x:y:_) = x == '0' && y == '0'
