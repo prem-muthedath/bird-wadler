@@ -70,6 +70,7 @@ notNum = not . isNum
 -- | reads a "binary" string, returning the number it represents in decimal.
 -- empty string & non-binary string throw error. non-binary string includes 
 -- anything that begins with a '-'; i.e., negative numbers are NOT allowed.
+-- example: `readBinary "11111111" :: [(Int, String)] = [(255, "")]`
 readBinary :: Num a => ReadS a
 -- readInt :: Num a => a -> (Char -> Bool) -> (Char -> Int) -> ReadS a
 readBinary bin | good      = readInt 2 f g bin
@@ -158,16 +159,16 @@ genNonNum = do
                   -- make sure we return a string of at least length 2. this 
                   -- will ensure that we never generate a "0", a valid number, 
                   -- but we can expect to generate a "00", a non-number.
-                  -- "<= 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs > 1 && length xs <= 64)
+                  -- "< 64" ensures that we stay within `Int` range.
+                  (\xs -> length xs > 1 && length xs < 64)
   x2 :: String <- listOf ((arbitrary :: Gen Char) `suchThat` isDigit)
                   `suchThat`
-                  -- "<= 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs <= 64)
+                  -- "< 64" ensures that we stay within `Int` range.
+                  (\xs -> length xs < 64)
   x3 :: String <- listOf genNonDigit
                   `suchThat`
-                  -- "<= 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs <= 64)
+                  -- "< 64" ensures that we stay within `Int` range.
+                  (\xs -> length xs < 64)
   frequency [ (1, return $ x1 ++ x2) -- returns, on purpose, string of size >= 2.
             , (2, return x3)
             ]
@@ -176,27 +177,41 @@ genNonNum = do
 genBinaryStr :: Gen String
 genBinaryStr = listOf1 $ elements ['0', '1']
 --------------------------------------------------------------------------------
--- | generate binary string <= 64 in length (i.e., within `Int` range).
+-- | generate binary string < 64 in length (i.e., within `Int` range).
+-- NOTE: `Int` has 64 bits, but the leftmost bit is a sign bit, so 63 bits, not 
+-- 64, determine the upper size limit, because if we have 63 '1's, we reach 
+-- `Int`s maxBound, as shown below:
+-- "111111111111111111111111111111111111111111111111111111111111111" is = 
+-- (maxBound :: Int) = 9223372036854775807 = (2 :: Int) ^ (63 :: Int) - 1.
+-- this is because, mathematically, 2^63 - 1 = 2 ^ 62 + 2 ^ 61 + ... + 2 ^ 0.
+-- for proof, see /u/ parcly taxel @ https://tinyurl.com/4d29wmr8 (math.SE)
 genBinaryStr64 :: Gen String
 genBinaryStr64 = listOf1 (elements ['0', '1'])
                  `suchThat`
-                 (\bin -> length bin <= 64)
+                 (\bin -> length bin < 64)
 --------------------------------------------------------------------------------
 -- | generate "bad binary" string.
 genBadBinaryStr :: Gen String
 genBadBinaryStr = listOf $ (arbitrary :: Gen Char) `suchThat` nonBin
 --------------------------------------------------------------------------------
--- | generate "bad binary" string with length <= 64 (within `Int` range).
+-- | generate "bad binary" string with length < 64 (within `Int` range).
+-- NOTE: `Int` has 64 bits, but the leftmost bit is a sign bit, so 63 bits, not 
+-- 64, determine the upper size limit, because if we have 63 '1's, we reach 
+-- `Int`s maxBound, as shown below:
+-- "111111111111111111111111111111111111111111111111111111111111111" is = 
+-- (maxBound :: Int) = 9223372036854775807 = (2 :: Int) ^ (63 :: Int) - 1.
+-- this is because, mathematically, 2^63 - 1 = 2 ^ 62 + 2 ^ 61 + ... + 2 ^ 0.
+-- for proof, see /u/ parcly taxel @ https://tinyurl.com/4d29wmr8 (math.SE)
 genBadBinaryStr64 :: Gen String
 genBadBinaryStr64 = listOf ((arbitrary :: Gen Char)
                             `suchThat` nonBin)
-                    `suchThat` (\bin -> length bin <= 64)
+                    `suchThat` (\bin -> length bin < 64)
 --------------------------------------------------------------------------------
 -- | generate "binary" decimal.
 genBinDec :: Gen Int
 genBinDec = do
   x :: Int <- (arbitrary :: Gen Int) `suchThat` (>= 0)
-  -- `showIntAtBase` shows a non-negative `Integral` instance in binary.
+  -- `showIntAtBase 2` shows a non-negative `Integral` instance in binary.
   -- showIntAtBase :: (Integral a, Show a) => a -> (Int -> Char) -> a -> ShowS
   let bin :: String = showIntAtBase 2 intToDigit x ""
   return $ read bin
@@ -264,6 +279,7 @@ prop_validNonNum = forAll genNonNum $
          classify (startsWith00 s) "start with 00" $
          classify (startsWithMinus s) "start with -" $
          classify (startsWithMinus0 s) "start with -0" $
+         -- readMaybe :: Read a => String -> Maybe a
          case readMaybe s :: Maybe Int of
             Just num  -> if length s > length (show num)
                             then property True
@@ -298,8 +314,8 @@ prop_validBinaryStr64 = forAll genBinaryStr64 $
          classify (xs /= "") "non-empty" $
          classify (xs /= [] && head xs == '0') "starts with 0" $
          classify (xs /= [] && head xs == '1') "starts with 1" $
-         classify (length xs <= 64) "size <= 64" $
-         length xs <= 64 .&&. allBin xs
+         classify (length xs < 64) "size < 64" $
+         length xs < 64 .&&. allBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "bad binary" is indeed non-binary.
 prop_validBadBinaryStr :: Property
@@ -314,8 +330,8 @@ prop_validBadBinaryStr64 :: Property
 prop_validBadBinaryStr64 = forAll genBadBinaryStr64 $
   \xs -> classify (notBin xs) "non-binary" $
          classify (xs == "") "empty" $
-         classify (length xs <= 64) "size <= 64" $
-         length xs <= 64 .&&. notBin xs
+         classify (length xs < 64) "size < 64" $
+         length xs < 64 .&&. notBin xs
 --------------------------------------------------------------------------------
 -- | check if generated "binary" decimal is valid: >= 0 and has only 1s & 0s.
 prop_validBinDec :: Property
@@ -333,6 +349,23 @@ prop_validBadBinDec = forAll genBadBinDec $
           decimal bad
 --------------------------------------------------------------------------------
 -- | properties.
+--------------------------------------------------------------------------------
+-- | check if `readBinary` does what is expected.
+prop_readBinary :: Property
+prop_readBinary = forAll genBinaryStr64 $
+  \bin -> case readBinary bin :: [(Int, String)] of
+            ((x, _) : []) -> (showIntAtBase 2 intToDigit x "") === f bin
+            _             -> property False
+  where f :: String -> String
+        f s | all (== '0') s = "0"
+            | otherwise      = dropWhile (== '0') s
+--------------------------------------------------------------------------------
+-- | check if `readBinary` fails as expected for non-binary input.
+  -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing 
+  -- test case` message that pops when we use  `=/=`, as it returns `Property`.
+prop_readBinaryFailure :: Property
+prop_readBinaryFailure = expectFailure $ forAll genBadBinaryStr64 $
+  \bad  -> (readBinary bad :: [(Int, String)]) /= []
 --------------------------------------------------------------------------------
 -- | check `Int` string -> "binary" string conversion.
 prop_intStrToBinStr :: Property
@@ -398,10 +431,11 @@ prop_decToBitsFailure = expectFailure $
         genBadDecimal = (arbitrary :: Gen Int) `suchThat` (>= (-100))
 --------------------------------------------------------------------------------
 -- | this property is there to show that `binStrToDec` will return incorrect 
--- negative value if the generated "binary" string passed to it has > the 64 
--- bits allowed for `Int`. here is a 65-bit example:
+-- negative value if the generated "binary" string passed to it has > the 63 
+-- bits allowed for `Int` (actually `Int` is 64 bits, but the leftmost bit is a 
+-- sign bit, so 63 bits determine `Int` magnitude).  here is a 65-bit example:
 -- "00010001100101010110001000011110100001001101101001100011001001001011111" 
--- returns incorrect negative value, because `Int` range is 64 bits.  if you use 
+-- returns incorrect negative value, because `Int` range is 63 bits.  if you use 
 -- `Integer` instead, which has unlimited range, this problem goes away.
 --
 -- ADVICE: if you are using generated binary string that has no upper limit on 
@@ -447,7 +481,7 @@ prop_badBinStrToDec = forAll genBadBinaryStr $
 -- | check equivalence of `binStrToDec` & `binStrToDecS`.
 prop_binStrToDecS :: Property
 prop_binStrToDecS = forAll genBinaryStr64 $
-  \bin -> classify (length bin <= 64) "has size <= 64" $
+  \bin -> classify (length bin < 64) "has size < 64" $
           classify (bin /= "") "non-empty" $
           classify (allBin bin) "binary" $
           classify (bin /= [] && head bin == '0') "starts with 0" $
@@ -457,7 +491,7 @@ prop_binStrToDecS = forAll genBinaryStr64 $
 -- | check equivalence of `binStrToDec` & `binStrToDecS` for non-binary string.
 prop_badBinStrToDecS :: Property
 prop_badBinStrToDecS = forAll genBadBinaryStr64 $
-  \bad -> classify (length bad <= 64) "has size <= 64" $
+  \bad -> classify (length bad < 64) "has size < 64" $
           classify (bad == "") "empty" $
           classify (notBin bad) "non-binary" $
           let dec1 :: Maybe Int = binStrToDec bad
