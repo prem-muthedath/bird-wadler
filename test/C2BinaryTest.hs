@@ -89,7 +89,7 @@ instance Num Bit where
   -- fromInteger :: Num a => Integer -> a
   -- negate :: Num a => a -> a
   -- signum :: Num a => a -> a
-  -- NOTE: define one these: x - y = x + negate y, negate x = 0 - x
+  -- NOTE: define one of these: x - y = x + negate y, negate x = 0 - x
   fromInteger = toEnum . fromInteger
   a + b       = toEnum (fromEnum a + fromEnum b)
   a * b       = toEnum (fromEnum a * fromEnum b)
@@ -101,12 +101,12 @@ instance Show Bit where
   show T = "1"
   show F = "0"
 
--- | i have left some stuff undefined because we don't need them.
 instance Num Binary where
+  -- i have left some stuff undefined because we don't need them.
   -- fromInteger :: Num a => Integer -> a
   -- negate :: Num a => a -> a
   -- signum :: Num a => a -> a
-  -- NOTE: define one these: x - y = x + negate y, negate x = 0 - x
+  -- NOTE: define one of these: x - y = x + negate y, negate x = 0 - x
   fromInteger = \i -> asBinary $ (fromInteger i :: Integer)
   (+)         = undefined
   (*)         = undefined
@@ -137,6 +137,7 @@ asBinary i | i >= 0     = Binary $ map (toEnum . digitToInt) showAsBinary
 -- | convert a `Binary` to a "binary" decimal.
 -- a "binary" decimal is really a binary literal of type `Int` or `Integer`.
 -- EXAMPLE: `Binary [T, T, F, F]` => 1100 :: Int`.
+-- readMaybe :: Read a => String -> Maybe a
 asBinDec :: (Integral a, Read a) => Binary -> Maybe a
 asBinDec bin = readMaybe . fromBin . show $ bin
 --------------------------------------------------------------------------------
@@ -233,14 +234,14 @@ genBinStrTestCases = do
   nonbin4 <- return ("0b" ++ nonbin3)
   return (bin, nonbin1, nonbin2, nonbin3, nonbin4)
 
--- | generate test cases for testing `decimmal`, `binNum`.
+-- | generate test cases for testing `decimal`, `binNum`.
 genBinNumTestCase :: Gen (Binary, Integer)
 genBinNumTestCase = do
   bin :: Binary  <- asBinary <$> (arbitrary :: Gen Integer) `suchThat` (>= 0)
   dec :: Integer <- (arbitrary :: Gen Integer) `suchThat` (>= 0)
   return (bin, dec)
 --------------------------------------------------------------------------------
--- | generate `Int` string, with values in range 0 ..  9223372036854775807.
+-- | generate `Int` string, with values in range 0 .. 9223372036854775807.
 -- 1. `Int` strings represent positive numbers, and they are non-empty.
 -- 2. NOTE: as documentation, the 1st version (very crude!) listed below.
 --    genIntStr = do
@@ -483,7 +484,7 @@ prop_binNum :: Property
 prop_binNum = forAll genBinNumTestCase $
   \(bin, dec) -> (binNum bin === True) .&&. (binNum dec === False)
 
--- check if `decimmal` does what is expected.
+-- check if `decimal` does what is expected.
 prop_decimal :: Property
 prop_decimal = forAll genBinNumTestCase $
   \(bin, dec) -> (decimal bin === False) .&&. (decimal dec === True)
