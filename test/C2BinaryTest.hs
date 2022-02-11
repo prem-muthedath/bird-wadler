@@ -22,7 +22,7 @@ module C2BinaryTest where
 -- Data.Word @ https://tinyurl.com/2p8zph45
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 import Test.QuickCheck
-import Control.Monad (liftM)
+import Control.Monad (liftM, guard)
 import Text.Read (readMaybe)
 import Numeric (readInt, showIntAtBase)
 import Data.Char (isDigit, digitToInt, intToDigit, isAscii, chr)
@@ -101,6 +101,13 @@ instance Show Bit where
   show T = "1"
   show F = "0"
 
+instance Read Bit where
+  -- readsPrec :: Read a => Int -> ReadS a
+  readsPrec _ r = case r of
+    ('0':xs)  -> return (toEnum 0, xs)
+    ('1':xs)  -> return (toEnum 1, xs)
+    _         -> []
+
 instance Num Binary where
   -- i have left some stuff undefined because we don't need them.
   -- fromInteger :: Num a => Integer -> a
@@ -119,6 +126,19 @@ instance Num Binary where
 instance Show Binary where
   show (Binary [])  = error $ binaryErr "show"
   show (Binary xs)  = toBin $ map (intToDigit . fromEnum) xs
+
+instance Read Binary where
+  -- Control.Monad.guard :: Alternative f => Bool -> f ()
+  readsPrec _ r = do
+    ("0", 'b':s) :: (String, String) <- lex r
+    guard $ s /= ""
+    readBits s
+    where readBits :: ReadS Binary
+          readBits "" = return (Binary [], "")
+          readBits s  = do
+            (x, a)        :: (Bit, String)    <- readsPrec 11 s
+            (Binary y, b) :: (Binary, String) <- readBits a
+            return (Binary (x : y), b)
 
 binaryErr :: String -> String
 binaryErr f = "C2BinaryTest.Binary." <> f <> ": Binary [] found, which is undefined."
@@ -285,6 +305,7 @@ genBadIntStr = do
                             `suchThat`
                             (< 0))
   big :: String <- show <$>
+          -- fromIntegral :: (Integral a, Num b) => a -> b
           chooseInteger ( (fromIntegral upperInt :: Integer) + 1
                         , (fromIntegral upperInt :: Integer) + 90
                         )
@@ -387,15 +408,7 @@ genBadBinaryStr = do
 -- this is because, mathematically, 2^63 - 1 = 2 ^ 62 + 2 ^ 61 + ... + 2 ^ 0.
 -- for proof, see /u/ parcly taxel @ https://tinyurl.com/4d29wmr8 (math.SE)
 genBadBinaryStr64 :: Gen String
-genBadBinaryStr64 = do
-    pre    <- elements ["", "0b"]
-    nonbin <- listOf (arbitrary :: Gen Char)
-              `suchThat`
-              (\xs -> length xs < 64 && any nonBin xs)
-    frequency [ (1, return pre)
-              , (2, return $ pre ++ nonbin)
-              , (10, return nonbin)
-              ]
+genBadBinaryStr64 = genBadBinaryStr `suchThat` (\xs -> length xs < 64)
 --------------------------------------------------------------------------------
 -- | generate "binary" decimal.
 -- 1. a "binary" decimal is really a binary literal of type `Int` or `Integer`.
@@ -502,6 +515,7 @@ prop_genIntStr = forAll genIntStr $
         (x =/= "") .&&. (asInt x >= 0 .&&. asInt x <= upperInt)
 --------------------------------------------------------------------------------
 -- | check if generated "bad" `Int` string is indeed bad.
+-- fromIntegral :: (Integral a, Num b) => a -> b
 prop_genBadIntStr :: Property
 prop_genBadIntStr = forAll genBadIntStr $
   \x -> classify (x == "") "empty" $
@@ -591,8 +605,8 @@ prop_genBinaryStr = forAll genBinaryStr $
           classify (allBin bin) "binary" $
           classify (bin /= "") "non-empty" $
           classify (xs /= "0b") "/= \"0b\"" $
-          classify (bin /= [] && head xs == '0') "start with 0b0" $
-          classify (bin /= [] && head xs == '1') "start with 0b1" $
+          classify (bin /= xs && head xs == '0') "start with 0b0" $
+          classify (bin /= xs && head xs == '1') "start with 0b1" $
           classify (length xs > 64) "size > 64" $
           allBin bin
 --------------------------------------------------------------------------------
@@ -603,8 +617,8 @@ prop_genBinaryStr64 = forAll genBinaryStr64 $
           classify (allBin bin) "binary" $
           classify (bin /= "") "non-empty" $
           classify (xs /= "0b") "/= \"0b\"" $
-          classify (bin /= [] && head xs == '0') "start with 0b0" $
-          classify (bin /= [] && head xs == '1') "start with 0b1" $
+          classify (bin /= xs && head xs == '0') "start with 0b0" $
+          classify (bin /= xs && head xs == '1') "start with 0b1" $
           classify (length xs < 64) "size < 64" $
           length xs < 64 .&&. allBin bin
 --------------------------------------------------------------------------------
@@ -658,11 +672,11 @@ prop_genBadBinDec = forAll genBadBinDec $
 prop_readBinary :: Property
 prop_readBinary = forAll genBinaryStr64 $
   \bin -> case readBinary bin :: [(Int, String)] of
-            ((x, _) : []) -> (showIntAtBase 2 intToDigit x "") === f bin
+            ((x, _) : []) -> (show . asBinary $ x)  === f bin
             _             -> property False
   where f :: String -> String
-        f bin | all (== '0') s = "0"
-              | otherwise      = dropWhile (== '0') s
+        f bin | all (== '0') s = toBin "0"
+              | otherwise      = toBin $ dropWhile (== '0') s
               where s :: String = fromBin bin
 --------------------------------------------------------------------------------
 -- | check if `readBinary` fails as expected for non-binary input.
@@ -751,6 +765,10 @@ prop_decToBitsFailure = expectFailure $
 --
 -- the conditional check in this property is contrived; i wrote it this way 
 -- because i wanted quickcheck to show the "binary" input for the failure case.
+--
+-- NOTE: this property may occasionaly fail in a particular set of 100 test runs 
+-- if the generated strings in all 100 runs are < 64 in size. but this is RARE, 
+-- and if you notice a failure, just re-run the test, and you'll see it pass.
 prop_binStrToDecNegative :: Property
 prop_binStrToDecNegative = expectFailure $ forAll genBinaryStr $
     \bin -> case (binStrToDec (fromBin bin) :: Maybe Int) of
@@ -763,8 +781,8 @@ prop_binStrToDec = forAll genBinaryStr $
   \bin -> let xs = fromBin bin in
           classify (bin /= "") "non-empty" $
           classify (allBin bin) "binary" $
-          classify (bin /= [] && head xs == '0') "start with 0b0" $
-          classify (bin /= [] && head xs == '1') "start with 0b1" $
+          classify (bin /= xs && head xs == '0') "start with 0b0" $
+          classify (bin /= xs && head xs == '1') "start with 0b1" $
           -- NOTE: due to laziness, the `let` clause is unevaluated until it is 
           -- needed during expression evaluation.  so in case of an empty 
           -- string, even though `readBinary` will error, we see no such errors, 
@@ -793,8 +811,8 @@ prop_binStrToDecS = forAll genBinaryStr64 $
           in classify (length xs < 64) "has size < 64" $
              classify (bin /= "") "non-empty" $
              classify (allBin bin) "binary" $
-             classify (bin /= [] && head xs == '0') "start with 0b0" $
-             classify (bin /= [] && head xs == '1') "start with 0b1" $
+             classify (bin /= xs && head xs == '0') "start with 0b0" $
+             classify (bin /= xs && head xs == '1') "start with 0b1" $
              (dec2 =/= Nothing) .&&.(dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check equivalence of `binStrToDec` & `binStrToDecS` for non-binary string.
