@@ -36,6 +36,10 @@ import Control.Monad (foldM)
 --  1. allowed `Int` range:  0 .. 2^63 -1 or 0 .. 9223372036854775807.
 --  2. `Int` string example: "255".
 --  3. "binary" string contains only '1' and '0'; 8-bit example: "11001001".
+--  4. in this code, stuff like "9\f", as well as "\f9", end up as a valid 
+--     number because `readmaybe "9\f"` = 9. in fact, any number string starting 
+--     or ending with any character determined by `Data.Char.isSpace` as space 
+--     will be read as a number. for example, `readMaybe "\r9\f\r\t" = 9`.
 intStrToBinStr :: String -> Either String String
 intStrToBinStr xs = do
     num :: Int <- toInt
