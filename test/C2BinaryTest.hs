@@ -261,6 +261,14 @@ fromBin :: String -> String
 fromBin s | allBin s  = drop 2 s
           | otherwise = s
 
+-- | drop leading zeros from a binary string.
+-- returns `Nothing` if string is non-binary, even if it has a binary prefix.
+dropLeading0s :: String -> Maybe String
+dropLeading0s bin | notBin bin     = Nothing
+                  | all (== '0') s = Just $ toBin "0"
+                  | otherwise      = Just $ toBin $ dropWhile (== '0') s
+                  where s :: String = fromBin bin
+
 -- | reads a "binary" string, returning the number it represents in decimal.
 -- 1. "binary" string must begin with "0b".
 -- 2. empty string ("", "0b") & non-binary string throw error. non-binary string 
@@ -817,7 +825,7 @@ prop_readBit = forAll (arbitrary :: Gen Bit) $
         classify (b == F) "F" $
         (b, "") `elem` (readsPrec 0 (showsPrec 0 b ""))
 --------------------------------------------------------------------------------
--- | check `Bit` read on a string with a `Binary` prefix & nnn-binary infix.
+-- | check `Bit` read on a string with a `Binary` prefix & non-binary infix.
 prop_readMixedBit :: Property
 prop_readMixedBit = forAll genMixedBinary $
   \(_, mix) -> classify ("0b" `isPrefixOf` mix) "begin with \"0b\"" $
@@ -896,30 +904,26 @@ prop_asBinaryFail = expectFailure $
     \int  -> asBinary int /= Binary []
 --------------------------------------------------------------------------------
 -- | check if `asBinDec` works as expected.
+-- NOTE: `from /u/ geekosaur @ haskell irc:
+-- @src Maybe fail: fail _ = Nothing`, so in the `Maybe` monad, "giving up" is 
+-- the definition of `fail`. this is why quickcheck reports "gave up", instead 
+-- of `fail`, in the `Maybe` monad whenever the `do` block returns `Nothing`.
 prop_asBinDec :: Property
 prop_asBinDec = forAll (arbitrary :: Gen Binary) $
-  \bin -> case (asBinDec bin :: Maybe Integer) of
-              Just x    -> (toBin . show $ x) === (f . show $ bin)
-              Nothing   -> property False
-  where f :: String -> String
-        f bin | all (== '0') s = toBin "0"
-              | otherwise      = toBin $ dropWhile (== '0') s
-              where s :: String = fromBin bin
+  \bin -> do x1 :: String <- toBin . show <$> (asBinDec bin :: Maybe Integer)
+             x2 :: String <- dropLeading0s . show $ bin
+             return $ x1 === x2
 --------------------------------------------------------------------------------
 -- | check if `readBin` does what is expected.
 prop_readBin :: Property
 prop_readBin = forAll genBinaryStr64 $
   \bin -> case readBin bin :: [(Int, String)] of
-            ((x, _) : []) -> (show . asBinary $ x)  === f bin
+            ((x, _) : []) -> Just (show . asBinary $ x) === dropLeading0s bin
             _             -> property False
-  where f :: String -> String
-        f bin | all (== '0') s = toBin "0"
-              | otherwise      = toBin $ dropWhile (== '0') s
-              where s :: String = fromBin bin
 --------------------------------------------------------------------------------
 -- | check if `readBin` fails as expected for mixed binary input.
--- NOTE: `readBin` will fail for mixed binary strings that have a binary prefix.  
--- so in essence, `readBin`, when it works, will always be a full parse.
+-- NOTE: `readBin` will fail for any non-binary string, including strings that 
+-- have a binary prefix. `readBin`, when it works, will always be a full parse.
 -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing test 
 -- case` message that pops when we use  `=/=`, as it returns `Property`.
 prop_readBinMixed :: Property
