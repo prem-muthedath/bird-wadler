@@ -120,14 +120,8 @@ instance Num Binary where
   -- signum :: Num a => a -> a
   -- NOTE: define one of these: x - y = x + negate y, negate x = 0 - x
   fromInteger = \i -> asBinary $ (fromInteger i :: Integer)
-  a + b       = addBin a b
-                where addBin :: Binary -> Binary -> Binary
-                      addBin x y = asBinary $
-                        (fromBinary x :: Integer) + (fromBinary y :: Integer)
-  a * b       = multBin a b
-                where multBin :: Binary -> Binary -> Binary
-                      multBin x y = asBinary $
-                        (fromBinary x :: Integer) * (fromBinary y :: Integer)
+  a + b       = asBinary $ (fromBinary a :: Integer) + (fromBinary b :: Integer)
+  a * b       = asBinary $ (fromBinary a :: Integer) * (fromBinary b :: Integer)
   negate a    = a
   abs a       = a
   signum a    = if all (== F) (toBits a) then 0 else 1
