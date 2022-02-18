@@ -23,7 +23,7 @@ module C2BinaryTest where
 -- Data.Bits @ https://tinyurl.com/3b2bu6dt
 -- Data.List @ https://tinyurl.com/ycxb9uaw
 import Test.QuickCheck
-import Control.Monad (liftM, guard)
+import Control.Monad (liftM, liftM2)
 import Text.Read (readMaybe)
 import Numeric (readInt, showIntAtBase)
 import Data.Char (isDigit, digitToInt, intToDigit, isAscii, chr, isSpace)
@@ -79,7 +79,7 @@ notNum = not . isNum
 -- REF: `Bit`: /u/ erikr @ https://tinyurl.com/2p87s5kv (so)
 -- REF: `Num` defined in GHC.Num @ https://tinyurl.com/dkkx8j3y (hackage)
 -- `Binary` implementation by Prem Muthedath.
-newtype Binary = Binary [Bit] deriving Eq
+newtype Binary = Binary (Bit, [Bit]) deriving Eq
 data Bit = T | F deriving Eq
 
 instance Enum Bit where
@@ -122,46 +122,44 @@ instance Num Binary where
   fromInteger = \i -> asBinary $ (fromInteger i :: Integer)
   a + b       = addBin a b
                 where addBin :: Binary -> Binary -> Binary
-                      addBin (Binary []) (Binary []) = undefined
-                      addBin (Binary []) (Binary x)  = Binary x
-                      addBin (Binary x) (Binary [])  = Binary x
                       addBin x y = asBinary $
                         (fromBinary x :: Integer) + (fromBinary y :: Integer)
   a * b       = multBin a b
                 where multBin :: Binary -> Binary -> Binary
-                      multBin (Binary []) (Binary _)  = undefined
-                      multBin (Binary _) (Binary [])  = undefined
                       multBin x y = asBinary $
                         (fromBinary x :: Integer) * (fromBinary y :: Integer)
   negate a    = a
   abs a       = a
-  signum a    = case a of
-    Binary b@(_:_) -> if all (== F) b then 0 else 1
-    Binary []      -> error $ binaryErr "signum"
+  signum a    = if all (== F) (toBits a) then 0 else 1
 
 instance Show Binary where
-  show (Binary [])  = error $ binaryErr "show"
-  show (Binary xs)  = toBin $ map (intToDigit . fromEnum) xs
+  show (Binary (x, xs))  = toBin $ map (intToDigit . fromEnum) (x:xs)
 
 -- `Read` instance for `Binary`; author: Prem Muthedath.
 instance Read Binary where
+  -- type ReadS a = String -> [(a, String)]
   -- readsPrec :: Read a => Int -> ReadS a
-  -- Control.Monad.guard :: Alternative f => Bool -> f ()
   readsPrec _ r = do
     ("0", 'b':s:_) :: (String, String) <- lex r
-    guard $ isBin s
-    readBinary $ drop 2 r
-    where readBinary :: ReadS Binary
-          readBinary ""                  = return (Binary [], "")
-          readBinary s | nonBin (head s) = return (Binary [], s)
-                       | otherwise       = do
-              (x, a)        :: (Bit, String)    <- readsPrec 11 s
-              (Binary y, b) :: (Binary, String) <- readBinary a
-              return (Binary (x : y), b)
+    (a, "")        :: (Bit, String)    <- readsPrec 0 [s]
+    (b, c)         :: ([Bit], String)  <- readBits $ drop 3 r
+    return (Binary (a, b), c)
+    where readBits :: ReadS [Bit]
+          readBits "" = return ([], "")
+          readBits s | nonBin (head s) = return ([], s)
+                     | otherwise       = do
+              (x, a)  :: (Bit, String)    <- readsPrec 11 s
+              (y, b)  :: ([Bit], String)  <- readBits a
+              return (x : y, b)
 
 -- | alternative implementation of `readsPrec` for `Binary`.
 -- implementation follows `++` pattern for `readsPrec` in haskell 2010 report.
 -- i wrote it as an exercise to compare with `readsPrec` in `Read Binary`.
+--
+-- NOTE: the first call to `readsPrecBin` should have precedence < 11. as is 
+-- custom, the first call should use 0 as precedence.
+--
+-- type ReadS a = String -> [(a, String)]
 readsPrecBin :: Int -> ReadS Binary
 readsPrecBin d0 x = if d0 < 11 then f x else g x
   where f :: ReadS Binary
@@ -170,29 +168,38 @@ readsPrecBin d0 x = if d0 < 11 then f x else g x
                   (p, q)         :: (Binary, String) <- readsPrecBin 11 (drop 2 r)
               ]
         g :: ReadS Binary
-        g r = g1 r ++ g2 r
-        g1 :: ReadS Binary
-        g1 ""                   = [(Binary [], "")]
-        g1 r | nonBin (head r)  = [(Binary [], r)]
-             | otherwise        = []
-        g2 :: ReadS Binary
-        g2 r = [(Binary (a : c), d) |
-                  (a, b)          :: (Bit, String)     <- readsPrec 11 r,
-                  (Binary c, d)   :: (Binary, String)  <- readsPrecBin 11 b
-               ]
+        g r = [(Binary (a, b), c) | (a:b, c) :: ([Bit], String)  <- readBits r]
+          where readBits :: ReadS [Bit]
+                readBits r1 = g1 r1 ++ g2 r1
+                g1 :: ReadS [Bit]
+                g1 ""                   = [([], "")]
+                g1 r1 | nonBin (head r1)  = [([], r1)]
+                      | otherwise        = []
+                g2 :: ReadS [Bit]
+                g2 r1 = [(a:c, d) |
+                    (a, b)  :: (Bit, String)    <- readsPrec 11 r1,
+                    (c, d)  :: ([Bit], String)  <- readBits  b
+                  ]
 
 -- | convert a `Binary` value to a `Num` instance value.
 fromBinary :: Num a => Binary -> a
-fromBinary (Binary []) = error $ binaryErr "asInteger"
-fromBinary b           = fst . head . readBin $ show b
+fromBinary b = fst . head . readBin $ show b
 
--- | generate error message for empty `Binary`.
--- 1st parameter is the name of the function that reported the empty `Binary`.
-binaryErr :: String -> String
-binaryErr f = "C2BinaryTest.Binary." <> f <> ": Binary [] found, which is undefined."
+-- | `Binary` value as a `[Bit]`.
+toBits :: Binary -> [Bit]
+toBits (Binary (x, xs)) = x:xs
+
+-- | makes a `Binary` value from a `[Bit]`; throws error if list is empty.
+mkBinary :: [Bit] -> Binary
+mkBinary []     = error "C2BinaryTest.mkBinary: [] supplied."
+mkBinary (x:xs) = Binary (x, xs)
+
+-- | number of bits in the `Binary` value.
+binSize :: Binary -> Int
+binSize = length . toBits
 
 -- | convert an `Integral` value to `Binary`.
--- EXAMPLE: `254 :: Int` => `Binary [T, T, T, T, T, T, T, F]`.
+-- EXAMPLE: `254 :: Int` => `Binary (T, [T, T, T, T, T, T, F])`.
 --
 -- NOTE:
 -- in essence, both `asBinary` and `readsPrec` for `Binary` do the same thing: 
@@ -204,7 +211,7 @@ binaryErr f = "C2BinaryTest.Binary." <> f <> ": Binary [] found, which is undefi
 --
 -- showIntAtBase :: (Integral a, Show a) => a -> (Int -> Char) -> a -> ShowS
 asBinary :: (Integral a, Show a) => a -> Binary
-asBinary i | i >= 0     = Binary $ map (toEnum . digitToInt) showAsBinary
+asBinary i | i >= 0     = mkBinary $ map (toEnum . digitToInt) showAsBinary
            | otherwise  = error msg
            where showAsBinary :: String
                  showAsBinary = showIntAtBase 2 intToDigit i ""
@@ -213,11 +220,10 @@ asBinary i | i >= 0     = Binary $ map (toEnum . digitToInt) showAsBinary
 
 -- | convert a `Binary` to a "binary" decimal.
 -- a "binary" decimal is really a binary literal of type `Int` or `Integer`.
--- EXAMPLE: `Binary [T, T, F, F]` => 1100 :: Int`.
+-- EXAMPLE: `Binary (T, [T, F, F])` => 1100 :: Int`.
 -- read :: Read a => String -> a
-asBinDec :: (Integral a, Read a) => Binary -> Maybe a
-asBinDec (Binary []) = Nothing
-asBinDec bin         = Just $ read . fromBin . show $ bin
+asBinDec :: (Integral a, Read a) => Binary -> a
+asBinDec = read . fromBin . show
 --------------------------------------------------------------------------------
 -- | common functions for "binary" strings.
 --------------------------------------------------------------------------------
@@ -430,9 +436,12 @@ instance Arbitrary Bit where
 -- | `Arbitrary` instance for `Binary`.
 instance Arbitrary Binary where
   -- Control.Monad.liftM :: Monad m => (a1 -> r) -> m a1 -> m r
+  -- Control.Monad.liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
   -- listOf :: Gen a -> Gen [a]
-  -- `arbitrary` ALWAYS generates a NON-EMPTY `Binary`.
-  arbitrary = liftM Binary (listOf1 (arbitrary :: Gen Bit))
+  arbitrary = liftM Binary $
+                liftM2 (,)
+                       (arbitrary :: Gen Bit)
+                       (listOf (arbitrary :: Gen Bit))
 --------------------------------------------------------------------------------
 -- | generate a data structure that represents a mix of `Binary` & non-`Binary`.
 -- the (`Binary`, String) tuple represents this data structure. the `Binary` in 
@@ -488,7 +497,7 @@ genBinaryStr = show <$> (arbitrary :: Gen Binary)
 genBinaryStr64 :: Gen String
 genBinaryStr64 = show <$> ((arbitrary :: Gen Binary)
                            `suchThat`
-                           (\(Binary xs) -> length xs < 64))
+                           (\bin -> binSize bin < 64))
 --------------------------------------------------------------------------------
 -- | generate "bad binary" string.
 -- "bad binary" string:
@@ -525,11 +534,11 @@ genBadBinaryStr64 = genBadBinaryStr `suchThat` (\xs -> length xs < 64)
 --------------------------------------------------------------------------------
 -- | generate "binary" decimal.
 -- 1. a "binary" decimal is really a binary literal of type `Int` or `Integer`.
--- 2. `Binary xs`, where `xs /= []`, "represents" a binary decimal, because we 
---    can easily translate it to a binary literal.
+-- 2. `Binary (x, xs)` "represents" a binary decimal, because we can easily 
+--    translate it to a binary literal.
 -- 3. binary decimals represent `Int` values >= 0; in fact, we generate binary 
 --    decimals from `Int` values >= 0.
--- EXAMPLES: `Binary [F]`, `Binary [T]`, `Binary [T, F]`, `Binary [T, T, T]`.
+-- EXAMPLES: `Binary (F, [])`, `Binary (T, [])`, `Binary (T, [F])`.
 genBinDec :: Gen Binary
 genBinDec = do
   x :: Int <- (arbitrary :: Gen Int) `suchThat` (>= 0)
@@ -581,11 +590,7 @@ prop_arbitraryBit = forAll (arbitrary :: Gen Bit) $
 -- | check if we are generating `Binary` correctly.
 prop_arbitraryBinary :: Property
 prop_arbitraryBinary = forAll (arbitrary :: Gen Binary) $
-  \bin  -> classify (bin /= (Binary [])) "not empty" $
-           isValid bin
-  where isValid :: Binary -> Bool
-        isValid (Binary []) = False
-        isValid (Binary xs) = all (`elem` [T, F]) xs
+  \(Binary (x, xs)) -> all (`elem` [T, F]) (x:xs)
 --------------------------------------------------------------------------------
 -- | check if `isBin` does what is expected.
 prop_isBin :: Property
@@ -802,11 +807,10 @@ prop_genBadBinaryStr64 = forAll genBadBinaryStr64 $
 prop_genBinDec :: Property
 prop_genBinDec = forAll genBinDec $
   \bin -> classify (binNum bin) "binary" $
-          case asBinDec bin :: Maybe Int of
-            Just num -> classify (num == 0) "= 0" $
-                        classify (num > 0) "> 0" $
-                        binNum bin .&&. property (num >= 0)
-            Nothing  -> Nothing === Just bin
+          let num :: Int = asBinDec bin
+          in classify (num == 0) "= 0" $
+             classify (num > 0) "> 0" $
+             binNum bin .&&. property (num >= 0)
 --------------------------------------------------------------------------------
 -- | check if generated "bad" binary decimal is indeed non-binary.
 prop_genBadBinDec :: Property
@@ -816,7 +820,7 @@ prop_genBadBinDec = forAll genBadBinDec $
           decimal bad
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
--- | properties.
+-- | properties -- test common/supporting functions.
 --------------------------------------------------------------------------------
 -- | check `Bit` read.
 prop_readBit :: Property
@@ -890,9 +894,9 @@ prop_asBinary :: Property
 prop_asBinary = forAll ((arbitrary :: Gen Int) `suchThat` (>= 0)) $
   \int  -> classify (int == 0) "= 0" $
            classify (int > 0) "> 0" $
-           let (Binary x) = asBinary int
-               y :: [Int] = map fromEnum (reverse x)
-               f :: [Int] = iterate (* 2) (1 :: Int)
+           let x :: [Bit]  = toBits $ asBinary int
+               y :: [Int]  = map fromEnum (reverse x)
+               f :: [Int]  = iterate (* 2) (1 :: Int)
            in int === (sum $ zipWith (*) y f)
 --------------------------------------------------------------------------------
 -- | check if `asBinary` fails as expected for negative numbers.
@@ -901,7 +905,7 @@ prop_asBinary = forAll ((arbitrary :: Gen Int) `suchThat` (>= 0)) $
 prop_asBinaryFail :: Property
 prop_asBinaryFail = expectFailure $
   forAll ((arbitrary :: Gen Int) `suchThat` (< 0)) $
-    \int  -> asBinary int /= Binary []
+    \int  -> (toBits $ asBinary int) /= []
 --------------------------------------------------------------------------------
 -- | check if `asBinDec` works as expected.
 -- NOTE: `from /u/ geekosaur @ haskell irc:
@@ -910,7 +914,7 @@ prop_asBinaryFail = expectFailure $
 -- of `fail`, in the `Maybe` monad whenever the `do` block returns `Nothing`.
 prop_asBinDec :: Property
 prop_asBinDec = forAll (arbitrary :: Gen Binary) $
-  \bin -> do x1 :: String <- toBin . show <$> (asBinDec bin :: Maybe Integer)
+  \bin -> do let x1 = toBin . show $ (asBinDec bin :: Integer)
              x2 :: String <- dropLeading0s . show $ bin
              return $ x1 === x2
 --------------------------------------------------------------------------------
@@ -949,6 +953,9 @@ prop_isNum = forAll (arbitrary :: Gen Int) $
 -- check for non-numbers.
 prop_notIsNum :: Property
 prop_notIsNum = forAll genNonNum $ not . isNum
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- | properties -- test main functions.
 --------------------------------------------------------------------------------
 -- | check `Int` string -> "binary" string conversion.
 prop_intStrToBinStr :: Property
@@ -1084,37 +1091,35 @@ prop_badBinStrToDecS = forAll genBadBinaryStr64 $
 -- | check "binary" decimal -> decimal conversion.
 prop_binDecToDec :: Property
 prop_binDecToDec = forAll genBinDec $
-  \bin -> classify (binNum  bin) "binary" $
-          let dec2 :: Int = fst . head . readBin $ show bin
-          in case asBinDec bin :: Maybe Int of
-                Just num -> case (binDecToDec num :: Maybe Int) of
-                              Just dec1 -> dec1 === dec2
-                              Nothing   -> property False
-                Nothing  -> Nothing === Just bin
+  \(bin :: Binary) -> classify (binNum  bin) "binary" $
+                      let dec2 :: Int = fst . head . readBin $ show bin
+                          num  :: Int = asBinDec bin
+                      in case (binDecToDec num :: Maybe Int) of
+                          Just dec1 -> dec1 === dec2
+                          Nothing   -> property False
 --------------------------------------------------------------------------------
 -- | check "bad binary" decimal -> decimal conversion.
 prop_badBinDecToDec :: Property
 prop_badBinDecToDec = forAll genBadBinDec $
-  \bad -> classify (decimal bad) "non-binary" $
-          (binDecToDec bad :: Maybe Int) === Nothing
+  \(bad :: Int) -> classify (decimal bad) "non-binary" $
+                   (binDecToDec bad :: Maybe Int) === Nothing
 --------------------------------------------------------------------------------
 -- | check equivalence of `binDecToDec` & `binDecToDecS` for binary decimal.
 prop_binDecToDecS :: Property
 prop_binDecToDecS = forAll genBinDec $
-  \bin -> classify (binNum bin) "binary" $
-          case asBinDec bin :: Maybe Int of
-            Just num -> let dec1 :: Maybe Int = binDecToDec num
-                            dec2 :: Maybe Int = binDecToDecS num
-                        in (dec2 =/= Nothing) .&&. (dec1 === dec2)
-            Nothing  -> Nothing === Just bin
+  \(bin :: Binary) -> classify (binNum bin) "binary" $
+                      let num  :: Int       = asBinDec bin
+                          dec1 :: Maybe Int = binDecToDec num
+                          dec2 :: Maybe Int = binDecToDecS num
+                      in (dec2 =/= Nothing) .&&. (dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check equivalence of `binDecToDec` & `binDecToDecS` for non-binary decimal.
 prop_badBinDecToDecS :: Property
 prop_badBinDecToDecS = forAll genBadBinDec $
-  \bad -> classify (decimal bad) "non-binary" $
-          let dec1 :: Maybe Int = binDecToDec bad
-              dec2 :: Maybe Int = binDecToDecS bad
-          in (dec2 === Nothing) .&&. (dec1 === dec2)
+  \(bad :: Int) -> classify (decimal bad) "non-binary" $
+                   let dec1 :: Maybe Int = binDecToDec bad
+                       dec2 :: Maybe Int = binDecToDecS bad
+                   in (dec2 === Nothing) .&&. (dec1 === dec2)
 --------------------------------------------------------------------------------
 -- | check `Word16` -> `Word8` conversion.
 -- REF: merge 2 bytes to 1: /u/ hdiederik @ https://tinyurl.com/2p88d8ex (so)
