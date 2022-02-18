@@ -172,9 +172,9 @@ readsPrecBin d0 x = if d0 < 11 then f x else g x
           where readBits :: ReadS [Bit]
                 readBits r1 = g1 r1 ++ g2 r1
                 g1 :: ReadS [Bit]
-                g1 ""                   = [([], "")]
+                g1 ""                     = [([], "")]
                 g1 r1 | nonBin (head r1)  = [([], r1)]
-                      | otherwise        = []
+                      | otherwise         = []
                 g2 :: ReadS [Bit]
                 g2 r1 = [(a:c, d) |
                     (a, b)  :: (Bit, String)    <- readsPrec 11 r1,
@@ -639,7 +639,7 @@ prop_decimal = forAll genBinNumTestCase $
 --------------------------------------------------------------------------------
 -- | check if generated `mixed` `Binary` is valid.
 prop_genMixedBinary :: Property
-prop_genMixedBinary = forAll genMixedBinary $
+prop_genMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
   \(bin, mix) -> let bins   = show bin
                      binPre = isPrefixOf bins mix
                      binSuf = isSuffixOf bins mix
