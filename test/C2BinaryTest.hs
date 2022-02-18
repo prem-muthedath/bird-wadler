@@ -406,10 +406,10 @@ genBadIntStr = do
             , (2, return mix)
             ]
 --------------------------------------------------------------------------------
--- | generate a non-number.
--- EXAMPLES: "", "00815","-00", "\141574\63324&e+Z!",
-genNonNum :: Gen String
-genNonNum = do
+-- | generate a non-number string.
+-- EXAMPLES: "", "00815","-00", "\141574\63324&e+Z!", "-00026589".
+genNonNumStr :: Gen String
+genNonNumStr = do
   pre :: String <- listOf1 (elements "-0")
                   `suchThat`
                   -- make sure we return a string of at least length 2. this 
@@ -425,7 +425,7 @@ genNonNum = do
                   `suchThat`
                   -- "< 64" ensures that we stay within `Int` range.
                   (\xs -> length xs < 64)
-  frequency [ (1, return $ pre ++ num) -- returns, on purpose, string of size >= 2.
+  frequency [ (1, return $ pre ++ num)
             , (2, return str)
             ]
 --------------------------------------------------------------------------------
@@ -456,21 +456,19 @@ genMixedBinary = do
                     (nonBin . head)
   return (bin, show bin ++ str ++ show bin)
 --------------------------------------------------------------------------------
--- | generate a string that represents a non-`Binary`.
+-- | generate string that has non-`Binary` prefix.
 -- NOTE: the string generated here will never have as prefix any sequence of 
 -- characters that can be considered `Binary`, so, for example, you'll never 
 -- have "0b0prem". `genBadBinaryStr`, on the other hand, allows `Binary` 
 -- sub-sequences as prefix as long as the string as a whole is non-binary.
 -- EXAMPLES: "\22728\1034044!1\RS", "0b\1070673P", "", "B".
-genNonBinary :: Gen String
-genNonBinary = do
+genNonBinaryStrPrefix :: Gen String
+genNonBinaryStrPrefix = do
   x1 <- elements ["", "0b"]
   x2 <- listOf1 (arbitrary :: Gen Char) `suchThat` (nonBin . head)
-  x3 <- listOf1 (arbitrary :: Gen Char) `suchThat` notBin
   frequency [ (1, return x1)
             , (2, return $ x1 ++ x2)
             , (2, return x2)
-            , (2, return x3)
             ]
 --------------------------------------------------------------------------------
 -- | generate a "binary" string.
@@ -656,8 +654,8 @@ prop_genMixedBinary = forAll genMixedBinary $
                       _           -> property False
 --------------------------------------------------------------------------------
 -- | check if generated "non-binary" is valid.
-prop_genNonBinary :: Property
-prop_genNonBinary = forAll genNonBinary $
+prop_genNonBinaryStrPrefix :: Property
+prop_genNonBinaryStrPrefix = forAll genNonBinaryStrPrefix $
   \nonbin -> classify (nonbin == "") "empty" $
              classify (nonbin == "0b") "= 0b" $
              classify (isPrefixOf "0b" nonbin) "start with \"0b\"" $
@@ -666,7 +664,7 @@ prop_genNonBinary = forAll genNonBinary $
                 ""            -> property True
                 "0b"          -> property True
                 ('0':'b':s:_) -> property $ nonBin s
-                _             -> property $ notBin nonbin
+                _             -> property $ nonBin (head nonbin)
 --------------------------------------------------------------------------------
 -- | check if generated `Int` string is valid.
 prop_genIntStr :: Property
@@ -727,14 +725,14 @@ prop_genBadIntStr = forAll genBadIntStr $
 -- NOTE: also, when we have numbers, `genNonNUm` string always returns a string 
 -- of at least size 2. this is done on purpose, so that we never get a "0", 
 -- which is a valid number, but we can expect to find "00", a non-number.
-prop_genNonNum :: Property
-prop_genNonNum = forAll genNonNum $
+prop_genNonNumStr :: Property
+prop_genNonNumStr = forAll genNonNumStr $
   \s  -> classify (s == []) "empty" $
          classify (startsWith00 s) "start with 00" $
          classify (startsWithMinus s) "start with -" $
          classify (startsWithMinus0 s) "start with -0" $
          -- readMaybe :: Read a => String -> Maybe a
-         case readMaybe s :: Maybe Int of
+         case readMaybe s :: Maybe Integer of
             Just num  -> if length s > length (show num)
                             then property True
                             else property False
@@ -806,18 +804,18 @@ prop_genBadBinaryStr64 = forAll genBadBinaryStr64 $
 -- | check if generated "binary" decimal is valid: >= 0 and has only 1s & 0s.
 prop_genBinDec :: Property
 prop_genBinDec = forAll genBinDec $
-  \bin -> classify (binNum bin) "binary" $
-          let num :: Int = asBinDec bin
-          in classify (num == 0) "= 0" $
-             classify (num > 0) "> 0" $
-             binNum bin .&&. property (num >= 0)
+  \(bin :: Binary) -> classify (binNum bin) "binary" $
+                      let num :: Int = asBinDec bin
+                      in classify (num == 0) "= 0" $
+                         classify (num > 0) "> 0" $
+                         binNum bin .&&. property (num >= 0)
 --------------------------------------------------------------------------------
 -- | check if generated "bad" binary decimal is indeed non-binary.
 prop_genBadBinDec :: Property
 prop_genBadBinDec = forAll genBadBinDec $
-  \bad -> classify (bad < 0) "< 0" $
-          classify (decimal bad) "non-binary" $
-          decimal bad
+  \(bad :: Int) -> classify (bad < 0) "< 0" $
+                   classify (decimal bad) "non-binary" $
+                   decimal bad
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | properties -- test common/supporting functions.
@@ -831,7 +829,7 @@ prop_readBit = forAll (arbitrary :: Gen Bit) $
 --------------------------------------------------------------------------------
 -- | check `Bit` read on a string with a `Binary` prefix & non-binary infix.
 prop_readMixedBit :: Property
-prop_readMixedBit = forAll genMixedBinary $
+prop_readMixedBit = forAll (genMixedBinary :: Gen (Binary, String)) $
   \(_, mix) -> classify ("0b" `isPrefixOf` mix) "begin with \"0b\"" $
                classify (notBin mix) "not binary" $
                (readsPrec 0 mix :: [(Bit, String)]) === [(F, tail mix)]
@@ -852,7 +850,7 @@ prop_readBinary = forAll (arbitrary :: Gen Binary) $
 --------------------------------------------------------------------------------
 -- | check `Binary` read on s string that has a mix of `Binary` & non-binary.
 prop_readMixedBinary :: Property
-prop_readMixedBinary = forAll genMixedBinary $
+prop_readMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
   \(bin, mix) -> classify (isBin . head . drop 2 $ mix) "have binary prefix" $
                  classify (notBin mix) "non-binary" $
                  let x :: [(Binary, String)] = readsPrec 0 mix
@@ -862,7 +860,7 @@ prop_readMixedBinary = forAll genMixedBinary $
 --------------------------------------------------------------------------------
 -- | check `Binary` read on non-`Binary` string.
 prop_readNonBinary :: Property
-prop_readNonBinary = forAll genNonBinary $
+prop_readNonBinary = forAll genNonBinaryStrPrefix $
   \bad -> (readsPrec 0 bad :: [(Binary, String)]) === []
 --------------------------------------------------------------------------------
 -- | check `readsPrecBin` `Binary` read.
@@ -872,13 +870,13 @@ prop_readsPrecBin = forAll (arbitrary :: Gen Binary) $
 --------------------------------------------------------------------------------
 -- | test `readsPrecBin` on string that has mix of `Binary` & non-Binary.
 prop_readsPrecBinMixed :: Property
-prop_readsPrecBinMixed = forAll genMixedBinary $
+prop_readsPrecBinMixed = forAll (genMixedBinary :: Gen (Binary, String)) $
   \(_, mix) -> let x :: [(Binary, String)] = readsPrec 0 mix
                in readsPrecBin 0 mix === x
 --------------------------------------------------------------------------------
 -- | check `readsPrecBin` on non-`Binary` string.
 prop_readsPrecBinNonBinary :: Property
-prop_readsPrecBinNonBinary = forAll genNonBinary $
+prop_readsPrecBinNonBinary = forAll genNonBinaryStrPrefix $
   \bad -> let x :: [(Binary, String)] = readsPrec 0 bad
               y :: [(Binary, String)] = readsPrecBin 0 bad
           in (y === []) .&&. (x === y)
@@ -931,8 +929,9 @@ prop_readBin = forAll genBinaryStr64 $
 -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing test 
 -- case` message that pops when we use  `=/=`, as it returns `Property`.
 prop_readBinMixed :: Property
-prop_readBinMixed = expectFailure $ forAll genMixedBinary $
-  \(_, mix) -> (readBin mix ::[(Integer, String)]) /= []
+prop_readBinMixed = expectFailure $
+  forAll (genMixedBinary :: Gen (Binary, String)) $
+    \(_, mix) -> (readBin mix ::[(Integer, String)]) /= []
 --------------------------------------------------------------------------------
 -- | check if `readBin` fails as expected for non-binary input.
 -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing test 
@@ -952,7 +951,7 @@ prop_isNum = forAll (arbitrary :: Gen Int) $
 
 -- check for non-numbers.
 prop_notIsNum :: Property
-prop_notIsNum = forAll genNonNum $ not . isNum
+prop_notIsNum = forAll genNonNumStr $ not . isNum
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | properties -- test main functions.
