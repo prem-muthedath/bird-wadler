@@ -333,6 +333,10 @@ genBinNumTestCase = do
   dec :: Integer <- (arbitrary :: Gen Integer) `suchThat` (>= 0)
   return (bin, dec)
 --------------------------------------------------------------------------------
+-- | generate 1 or more spaces, stuff defined by `Data.Char.isSpace` as `True`.
+gen1Spaces :: Gen String
+gen1Spaces = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSpace
+--------------------------------------------------------------------------------
 -- | generate `Int` string, with values in range 0 .. 9223372036854775807.
 -- 1. `Int` strings represent positive numbers, and they are non-empty.
 -- 2. because of the use of `readMaybe` in `intStrToBinStr`, strings with space 
@@ -353,7 +357,7 @@ genBinNumTestCase = do
 --  EXAMPLES: "10", "1", "17", "\r9\n".
 genIntStr :: Gen String
 genIntStr = do
-  spac  :: String <- listOf1 $ (arbitrary :: Gen Char) `suchThat` isSpace
+  spac  :: String <- gen1Spaces
   edge  :: Int    <- elements [0, upperInt]
   inner :: Int    <- (arbitrary :: Gen Int)
                      `suchThat`
@@ -366,20 +370,23 @@ genIntStr = do
 --------------------------------------------------------------------------------
 -- | generate a non-digit character. non-digit means not any in '0' .. '9'.
 -- EXAMPLES: '[', '\1103141'.
-genNonDigit :: Gen Char
-genNonDigit = (arbitrary :: Gen Char) `suchThat` (not . isDigit)
+genNonDigitChar :: Gen Char
+genNonDigitChar = (arbitrary :: Gen Char) `suchThat` (not . isDigit)
 --------------------------------------------------------------------------------
 -- | generate "bad" `Int` string.
 -- "bad Int" strings can:
 --    1. be empty,
 --    2. contain non-digits,
 --    3. represent negative numbers or numbers beyond `Int` upper limit,
---    4. or contain a mix of digits & non-digits.
---    5. be pure numbers, but they will NEVER have leading/trailing spaces.
+--    4. have leading/trailing spaces in (3).
+--    5. contain a mix of digits & non-digits.
+--    6. NEVER be pure numbers or numbers with leading/trailing spaces within 
+--       the range `0 .. maxBound :: Int`.
 --    EXAMPLES: "-2", "", "9223372036854775845", "1/lk", "\SI;\SO".
 genBadIntStr :: Gen String
 genBadIntStr = do
-  str :: String <- listOf genNonDigit
+  spc :: String <- gen1Spaces
+  str :: String <- listOf genNonDigitChar
   neg :: String <- show <$> ((arbitrary :: Gen Int)
                             `suchThat`
                             (< 0))
@@ -388,15 +395,23 @@ genBadIntStr = do
           chooseInteger ( (fromIntegral upperInt :: Integer) + 1
                         , (fromIntegral upperInt :: Integer) + 90
                         )
-  mix :: String <- listOf1 ((arbitrary :: Gen Char))
-                  `suchThat`
-                  (\xs -> any (not . isDigit) xs &&
-                          any isDigit xs &&
-                          trim' xs == xs) -- eliminate leading/trailing spaces
+  mix1 :: String <- concat <$> shuffle [neg, spc]
+  mix2 :: String <- concat <$> shuffle [big, spc]
+  -- generate a string that has a mix of digits & non-digits. however, the 
+  -- non-digits are not all spaces, for if they were, we would end up with a 
+  -- valid number (i.e., digits & spaces), not a "bad" `Int` string.  so we 
+  -- avoid that here using the `trim'` condition.
+  mix3 :: String <- listOf1 ((arbitrary :: Gen Char))
+                    `suchThat`
+                    (\xs -> any (not . isDigit) xs &&
+                            any isDigit xs &&
+                            trim' xs == xs) -- eliminate leading/trailing spaces
   frequency [ (1, return str)
             , (1, return neg)
             , (1, return big)
-            , (2, return mix)
+            , (1, return mix1)
+            , (1, return mix2)
+            , (2, return mix3)
             ]
 --------------------------------------------------------------------------------
 -- | generate a non-number string.
@@ -414,7 +429,7 @@ genNonNumStr = do
                   `suchThat`
                   -- "< 64" ensures that we stay within `Int` range.
                   (\xs -> length xs < 64)
-  str :: String <- listOf genNonDigit
+  str :: String <- listOf genNonDigitChar
                   `suchThat`
                   -- "< 64" ensures that we stay within `Int` range.
                   (\xs -> length xs < 64)
@@ -676,22 +691,28 @@ prop_genIntStr = forAll genIntStr $
 -- fromIntegral :: (Integral a, Num b) => a -> b
 prop_genBadIntStr :: Property
 prop_genBadIntStr = forAll genBadIntStr $
-  \x -> classify (x == "") "empty" $
-        classify (notNum x && trim' x /= x) "non-numbers have leading/trailing spaces" $
-        classify (isNum x && trim' x == x) "numbers with NO leading/trailing spaces" $
-        classify (isNum x) "number" $
-        classify (isNum x && asInteger x < 0) "< 0" $
-        classify (isNum x &&
-          asInteger x > (fromIntegral upperInt :: Integer)) "> 2 ^ 63 - 1" $
-        classify (notNum x) "non-number" $
-        classify (notNum x && any isDigit x) "non-number with >= 1 digits" $
-        check x
-  where check :: String -> Property
-        check x | x == ""   = property True
-                | isNum x   = asInteger x < 0 .||.
-                              asInteger x > (fromIntegral upperInt :: Integer)
-                | notNum x  = property True
-                | otherwise = property False
+  \x -> let x' = trim' x
+        in classify (x == "") "empty" $
+           classify (x /= "" && x' == "") "all spaces" $
+           classify (notNum x' && x /= x') "non-numbers + lead/trail spaces" $
+           classify (notNum x' && x /= x' && all (not . isDigit) x)
+            "non-numbers WITHOUT digits + lead/trail spaces" $
+           classify (isNum x && x == x') "numbers without lead/trail spaces" $
+           classify (isNum x' && x /= x') "numbers with lead/trail spaces" $
+           classify (isNum x') "number" $
+           classify (isNum x' && asInteger x < 0) "< 0" $
+           classify (isNum x' &&
+            asInteger x > (fromIntegral upperInt :: Integer)) "> 2 ^ 63 - 1" $
+           classify (notNum x') "non-number" $
+           classify (notNum x' && any isDigit x) "non-number with >= 1 digits" $
+           check x x'
+  where check :: String -> String -> Property
+        check x x' | x  == ""  = property True
+                   | x' == ""  = property True
+                   | isNum x'  = asInteger x < 0 .||.
+                                 asInteger x > (fromIntegral upperInt :: Integer)
+                   | notNum x' = property True
+                   | otherwise = property False
 --------------------------------------------------------------------------------
 -- | check if generated "non-number" is indeed a non-number.
 -- NOTE: we do not have a similiar test for a number generator, because it is so 
@@ -969,11 +990,12 @@ prop_intStrToBinStr = forAll genIntStr $
 -- | check "bad" `Int` string -> "binary" string conversion.
 prop_badIntStrToBinStr :: Property
 prop_badIntStrToBinStr = forAll genBadIntStr $
-  \x -> classify (x == "") "empty" $
-        classify (notNum x) "non-number" $
-        classify (isNum x) "number" $
-        classify (notNum x && trim' x /= x) "non-numbers have leading/trailing spaces" $
-        classify (isNum x && trim' x == x) "numbers with NO leading/trailing spaces" $
+  \x -> let x' = trim' x in
+        classify (x == "") "empty" $
+        classify (notNum x') "non-number" $
+        classify (isNum x') "number" $
+        classify (notNum x' && x /= x') "non-numbers WITH lead/trail spaces" $
+        classify (isNum x' && x /= x') "numbers WITH lead/trail spaces" $
         case intStrToBinStr x of
             Left _  -> property True
             Right _ -> property False
