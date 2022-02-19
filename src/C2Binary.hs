@@ -40,17 +40,20 @@ import Control.Monad (foldM)
 --     number because `readmaybe "9\f"` = 9. in fact, any number string starting 
 --     or ending with any character determined by `Data.Char.isSpace` as space 
 --     will be read as a number. for example, `readMaybe "\r9\f\r\t" = 9`.
+--  SAMPLE Int OUT-OF-RANGE INPUT/OUTPUT:
+--    intStrToBinStr "9797716803182633900815968305162\t\r\n\t" =
+--    Left "out-of-range: 9797716803182633900815968305162\t\r\n\t not in 0 .. 9223372036854775807."
 intStrToBinStr :: String -> Either String String
 intStrToBinStr xs = do
-    num :: Int <- toInt
-    if num >= 0 && num <= upper
-       then Right $ toBinStr $ intToWord64 num
+    num :: Integer <- toInt
+    if num >= 0 && num <= (fromIntegral upper :: Integer)
+       then Right $ toBinStr $ intToWord64 (fromInteger num :: Int)
        else Left msg
-  where toInt :: Either String Int
+  where toInt :: Either String Integer
         -- readMaybe :: Read a => String -> Maybe a
-        toInt = case (readMaybe xs :: Maybe Int) of
+        toInt = case (readMaybe xs :: Maybe Integer) of
                     Just n  -> Right n
-                    Nothing -> Left $ xs <> " is not an Int"
+                    Nothing -> Left $ xs <> " is not an Integer"
         upper :: Int
         -- maxBound :: Bounded a => a
         upper = maxBound :: Int   -- same as (2 :: Int) ^ (63 :: Int) - 1

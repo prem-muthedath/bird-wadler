@@ -393,7 +393,8 @@ genBadIntStr = do
   big :: String <- show <$>
           -- fromIntegral :: (Integral a, Num b) => a -> b
           chooseInteger ( (fromIntegral upperInt :: Integer) + 1
-                        , (fromIntegral upperInt :: Integer) + 90
+                        , (fromIntegral upperInt :: Integer) + 
+                           (10000000000000000000000000000000 :: Integer)
                         )
   mix1 :: String <- concat <$> shuffle [neg, spc]
   mix2 :: String <- concat <$> shuffle [big, spc]
@@ -998,7 +999,9 @@ prop_badIntStrToBinStr = forAll genBadIntStr $
         classify (isNum x' && x /= x') "numbers WITH lead/trail spaces" $
         case intStrToBinStr x of
             Left _  -> property True
-            Right _ -> property False
+            Right _ -> let x1 :: Int     = read x
+                           x2 :: Integer = read x
+                       in show x1 === show x2
 --------------------------------------------------------------------------------
 -- | check `Word64` -> `[Word64]` binary, "decimal" -> "bits" conversions.
 prop_toBinary :: Property
