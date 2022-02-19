@@ -134,9 +134,8 @@ instance Read Binary where
   -- type ReadS a = String -> [(a, String)]
   -- readsPrec :: Read a => Int -> ReadS a
   readsPrec _ r = do
-    ("0", 'b':s:_) :: (String, String) <- lex r
-    (a, "")        :: (Bit, String)    <- readsPrec 0 [s]
-    (b, c)         :: ([Bit], String)  <- readBits $ drop 3 r
+    ("0", 'b':_:_) :: (String, String) <- lex r
+    (a:b, c)       :: ([Bit], String)  <- readBits $ drop 2 r
     return (Binary (a, b), c)
     where readBits :: ReadS [Bit]
           readBits "" = return ([], "")
@@ -166,7 +165,7 @@ readsPrecBin d0 x = if d0 < 11 then f x else g x
           where readBits :: ReadS [Bit]
                 readBits r1 = g1 r1 ++ g2 r1
                 g1 :: ReadS [Bit]
-                g1 ""                     = [([], "")]
+                g1 "" = [([], "")]
                 g1 r1 | nonBin (head r1)  = [([], r1)]
                       | otherwise         = []
                 g2 :: ReadS [Bit]
