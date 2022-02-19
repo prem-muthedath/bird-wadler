@@ -46,6 +46,8 @@ import Control.Monad (foldM)
 intStrToBinStr :: String -> Either String String
 intStrToBinStr xs = do
     num :: Integer <- toInt
+    -- fromIntegral :: (Integral a, Num b) => a -> b
+    -- fromInteger :: Num a => Integer -> a
     if num >= 0 && num <= (fromIntegral upper :: Integer)
        then Right $ toBinStr $ intToWord64 (fromInteger num :: Int)
        else Left msg

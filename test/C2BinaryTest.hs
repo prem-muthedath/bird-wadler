@@ -107,6 +107,7 @@ instance Show Bit where
 
 instance Read Bit where
   -- readsPrec :: Read a => Int -> ReadS a
+  -- type ReadS a = String -> [(a, String)]
   readsPrec _ r = case r of
     ('0':xs)  -> return (toEnum 0, xs)
     ('1':xs)  -> return (toEnum 1, xs)
@@ -382,7 +383,7 @@ genNonDigitChar = (arbitrary :: Gen Char) `suchThat` (not . isDigit)
 --    5. contain a mix of digits & non-digits.
 --    6. NEVER be pure numbers or numbers with leading/trailing spaces within 
 --       the range `0 .. maxBound :: Int`.
---    EXAMPLES: "-2", "", "9223372036854775845", "1/lk", "\SI;\SO".
+--    EXAMPLES: "-2", "", "9223372036854775845", "1/lk", "\SI;\SO", "\r\r-4".
 genBadIntStr :: Gen String
 genBadIntStr = do
   spc :: String <- gen1Spaces
@@ -394,7 +395,7 @@ genBadIntStr = do
           -- fromIntegral :: (Integral a, Num b) => a -> b
           chooseInteger ( (fromIntegral upperInt :: Integer) + 1
                         , (fromIntegral upperInt :: Integer) + 
-                           (10000000000000000000000000000000 :: Integer)
+                          (10000000000000000000000000000000 :: Integer)
                         )
   mix1 :: String <- concat <$> shuffle [neg, spc]
   mix2 :: String <- concat <$> shuffle [big, spc]
@@ -678,15 +679,16 @@ prop_genNonBinaryStrPrefix = forAll genNonBinaryStrPrefix $
 -- | check if generated `Int` string is valid.
 prop_genIntStr :: Property
 prop_genIntStr = forAll genIntStr $
-  \x -> classify (isNum x) "number" $
-        classify (asInt x == 0) "= 0" $
-        classify (asInt x > 0 && asInt x < upperInt) "in 1 .. 2 ^ 63 - 2" $
-        classify (asInt x == upperInt) "= 2 ^ 63 - 1" $
-        classify (trim' x /= x) "contain leading/trailing spaces" $
-        (x =/= "") .&&. (asInt x >= 0 .&&. asInt x <= upperInt)
-        .&&. case isNum x of
-              True  -> trim' x === x
-              False -> trim' x =/= x
+  \x -> let x' = trim' x
+        in classify (isNum x') "number" $
+           classify (asInt x == 0) "= 0" $
+           classify (asInt x > 0 && asInt x < upperInt) "in 1 .. 2 ^ 63 - 2" $
+           classify (asInt x == upperInt) "= 2 ^ 63 - 1" $
+           classify (x /= x') "contain leading/trailing spaces" $
+           (x' =/= "") .&&. (asInt x >= 0 .&&. asInt x <= upperInt)
+           .&&. case isNum x of
+              True  -> x' === x
+              False -> x' =/= x
 --------------------------------------------------------------------------------
 -- | check if generated "bad" `Int` string is indeed bad.
 -- fromIntegral :: (Integral a, Num b) => a -> b
@@ -974,13 +976,14 @@ prop_notIsNum = forAll genNonNumStr $ not . isNum
 -- | check `Int` string -> "binary" string conversion.
 prop_intStrToBinStr :: Property
 prop_intStrToBinStr = forAll genIntStr $
-  \x -> classify (isNum x) "number" $
-        classify (trim' x /= x) "contain leading/trailing spaces" $
-        classify (x == "0") "= 0" $
-        classify (x == show upperInt) "= 2^63 - 1" $
-        case intStrToBinStr x of
-            Left _    -> property False
-            Right bin -> check x bin
+  \x -> let x' = trim' x
+        in classify (isNum x') "number" $
+           classify (x /= x') "contain leading/trailing spaces" $
+           classify (x' == "0") "= 0" $
+           classify (x' == show upperInt) "= 2^63 - 1" $
+           case intStrToBinStr x of
+              Left _    -> property False
+              Right bin -> check x bin
   where check :: String -> String -> Property
         check x bin = r1 === r2
           where r1 :: [(Int, String)] = trimTL $ readsPrec 0 x
