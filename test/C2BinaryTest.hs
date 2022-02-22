@@ -79,9 +79,11 @@ notNum = not . isNum
 -- REF: `Bit`: /u/ erikr @ https://tinyurl.com/2p87s5kv (so)
 -- REF: `Num` defined in GHC.Num @ https://tinyurl.com/dkkx8j3y (hackage)
 -- `Binary` implementation by Prem Muthedath.
-newtype Binary = Binary (Bit, [Bit]) deriving Eq
+newtype Binary = Binary (Bit, [Bit])
 data Bit = T | F deriving Eq
 
+-- fromEnum :: Enum a => a -> Int
+-- toEnum :: Enum a => Int -> a
 instance Enum Bit where
   fromEnum F = 0
   fromEnum T = 1
@@ -121,16 +123,19 @@ instance Num Binary where
   -- signum :: Num a => a -> a
   -- NOTE: define one of these: x - y = x + negate y, negate x = 0 - x
   fromInteger = \i -> asBinary $ (fromInteger i :: Integer)
-  a + b       = asBinary $ (fromBinary a :: Integer) + (fromBinary b :: Integer)
-  a * b       = asBinary $ (fromBinary a :: Integer) * (fromBinary b :: Integer)
+  a + b       = asBinary $ fromBinary a + fromBinary b
+  a * b       = asBinary $ fromBinary a * fromBinary b
   negate a    = a
   abs a       = a
-  signum a    = if all (== F) (toBits a) then 0 else 1
+  signum a    = if all (== F) (toBits a) then Binary (F, []) else Binary (T, [])
+
+instance Eq Binary where
+  a == b = binaryValue a == binaryValue b
 
 instance Show Binary where
   show (Binary (x, xs))  = toBin $ map (intToDigit . fromEnum) (x:xs)
 
--- `Read` instance for `Binary`; author: Prem Muthedath.
+-- | `Read` instance for `Binary`; author: Prem Muthedath.
 instance Read Binary where
   -- type ReadS a = String -> [(a, String)]
   -- readsPrec :: Read a => Int -> ReadS a
@@ -175,13 +180,31 @@ readsPrecBin d0 x = if d0 < 11 then f x else g x
                     (c, d)  :: ([Bit], String)  <- readBits  b
                   ]
 
--- | convert a `Binary` value to a `Num` instance value.
-fromBinary :: Num a => Binary -> a
+-- | convert a `Binary` value to an `Integer` value.
+-- `Binary` can be any size, which is why we only allow Integer conversion.
+fromBinary :: Binary -> Integer
 fromBinary b = fst . head . readBin $ show b
 
 -- | `Binary` value as a `[Bit]`.
 toBits :: Binary -> [Bit]
 toBits (Binary (x, xs)) = x:xs
+
+-- | decimal value of a `Binary`.
+-- `Binary` can be any size, which is why we only report Integer value.
+-- REF: see /u/ fp_mora, /u/ dave4420 @ https://tinyurl.com/2p9cjft5 (so)
+-- REF: see `iterate` in Data.List @ https://tinyurl.com/ycxb9uaw
+-- iterate :: (a -> a) -> a -> [a]
+-- iterate f x =  x : iterate f (f x)
+-- iterate f x == [x, f x, f (f x), ...]
+-- zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
+-- fromEnum :: Enum a => a -> Int
+-- fromIntegral :: (Integral a, Num b) => a -> b
+binaryValue :: Binary -> Integer
+binaryValue x = sum $ zipWith (*) (f x) g
+  where f :: Binary -> [Integer]
+        f = map (fromIntegral . fromEnum) . (reverse . toBits)
+        g :: [Integer]
+        g = iterate (*2) (1 :: Integer)
 
 -- | makes a `Binary` value from a `[Bit]`; throws error if list is empty.
 mkBinary :: [Bit] -> Binary
@@ -197,12 +220,14 @@ binSize = length . toBits
 --
 -- NOTE:
 -- in essence, both `asBinary` and `readsPrec` for `Binary` do the same thing: 
--- they pasre the string to generate a `Binary`.  but `asBinary` code is 
+-- they parse the string to generate a `Binary`.  but `asBinary` code is 
 -- different from, and simpler than, `readsPrec` for `Binary`, because over 
 -- here, we do not need to worry about bad parses etc, since we start off with a 
 -- valid number.  `readsPrec` has no such certainity: it has tp parse any 
 -- string, good or or bad, so it's code is more complex.
 --
+-- shoIntAtBase: shows a non-negative Integral number using the base specified 
+-- by the 1st argument, and the character representation specified by the 2nd.
 -- showIntAtBase :: (Integral a, Show a) => a -> (Int -> Char) -> a -> ShowS
 asBinary :: (Integral a, Show a) => a -> Binary
 asBinary i | i >= 0     = mkBinary $ map (toEnum . digitToInt) showAsBinary
@@ -273,8 +298,13 @@ dropLeading0s bin | notBin bin     = Nothing
 -- 1. "binary" string must begin with "0b".
 -- 2. empty string ("", "0b") & non-binary string throw error. non-binary string 
 --    includes anything that begins with '-'; i.e., -ve numbers are NOT allowed.
--- 3. example: `readBin "0b11111111" :: [(Int, String)] = [(255, "")]`
+-- 3. `readBin` always does a full parse and always returns a value >= 0;
+-- 4. if you call `readBin` with a binary string whose size, excluding its 
+--    prefix "0b", is > 63, you should use an `Integer` type annotation, instead 
+--    of `Int` or even a `Word64`, in the call to avoid a wrong result.
+-- 5. example: `readBin "0b11111111" :: [(Int, String)] = [(255, "")]`
 readBin :: Num a => ReadS a
+-- readInt: reads an unsigned Integral value in an arbitrary base.
 -- readInt :: Num a => a -> (Char -> Bool) -> (Char -> Int) -> ReadS a
 readBin bin | good      = readInt 2 f g (fromBin bin)
             | otherwise = error $ "C2BinaryTest.readBin => "
@@ -308,31 +338,6 @@ trim' = dropWhileEnd isSpace . dropWhile isSpace
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | generators.
---------------------------------------------------------------------------------
--- | generate binary & non-binary test cases for testing `isBin` & `nonBin`.
-genBitTestCases :: Gen (Char, Char)
-genBitTestCases = do
-  bin    <- elements ['0', '1']
-  nonbin <- (arbitrary :: Gen Char) `suchThat` (not . (`elem` ['0', '1']))
-  return (bin, nonbin)
-
--- | generate binary & non-binary strings to test common functions like 
--- `allBin`, `notBin`, toBin, `fromBin`:
-genBinStrTestCases :: Gen (String, String, String, String, String)
-genBinStrTestCases = do
-  bin     <- ("0b" ++) <$> listOf1 ((arbitrary :: Gen Char) `suchThat` isBin)
-  nonbin1 <- return $ drop 2 bin
-  nonbin2 <- elements ["", "0b"]
-  nonbin3 <- listOf (arbitrary :: Gen Char) `suchThat` (any nonBin)
-  nonbin4 <- return ("0b" ++ nonbin3)
-  return (bin, nonbin1, nonbin2, nonbin3, nonbin4)
-
--- | generate test cases for testing `decimal`, `binNum`.
-genBinNumTestCase :: Gen (Binary, Integer)
-genBinNumTestCase = do
-  bin :: Binary  <- asBinary <$> (arbitrary :: Gen Integer) `suchThat` (>= 0)
-  dec :: Integer <- (arbitrary :: Gen Integer) `suchThat` (>= 0)
-  return (bin, dec)
 --------------------------------------------------------------------------------
 -- | generate 1 or more spaces, stuff defined by `Data.Char.isSpace` as `True`.
 gen1Spaces :: Gen String
@@ -453,6 +458,31 @@ instance Arbitrary Binary where
                        (arbitrary :: Gen Bit)
                        (listOf (arbitrary :: Gen Bit))
 --------------------------------------------------------------------------------
+-- | generate binary & non-binary test cases for testing `isBin` & `nonBin`.
+genBitTestCases :: Gen (Char, Char)
+genBitTestCases = do
+  bin    <- elements ['0', '1']
+  nonbin <- (arbitrary :: Gen Char) `suchThat` (not . (`elem` ['0', '1']))
+  return (bin, nonbin)
+
+-- | generate binary & non-binary strings to test common functions like 
+-- `allBin`, `notBin`, toBin, `fromBin`:
+genBinStrTestCases :: Gen (String, String, String, String, String)
+genBinStrTestCases = do
+  bin     <- ("0b" ++) <$> listOf1 ((arbitrary :: Gen Char) `suchThat` isBin)
+  nonbin1 <- return $ drop 2 bin
+  nonbin2 <- elements ["", "0b"]
+  nonbin3 <- listOf (arbitrary :: Gen Char) `suchThat` (any nonBin)
+  nonbin4 <- return ("0b" ++ nonbin3)
+  return (bin, nonbin1, nonbin2, nonbin3, nonbin4)
+
+-- | generate test cases for testing `decimal`, `binNum`.
+genBinNumTestCase :: Gen (Binary, Integer)
+genBinNumTestCase = do
+  bin :: Binary  <- arbitrary :: Gen Binary
+  dec :: Integer <- (arbitrary :: Gen Integer) `suchThat` (>= 0)
+  return (bin, dec)
+--------------------------------------------------------------------------------
 -- | generate a data structure that represents a mix of `Binary` & non-`Binary`.
 -- the (`Binary`, String) tuple represents this data structure. the `Binary` in 
 -- the pair forms the string's prefix and suffix; the infix part of the string 
@@ -563,6 +593,18 @@ genBadBinDec = (arbitrary :: Gen Int)
 ------------------------------------------`--------------------------------------
 -- | test the basic common functions & their generators!
 --------------------------------------------------------------------------------
+-- | check if we are generating `Bit` correctly.
+prop_arbitraryBit :: Property
+prop_arbitraryBit = forAll (arbitrary :: Gen Bit) $
+  \x  -> classify (x == T) "T" $
+         classify (x == F) "F" $
+         (x === T) .||. (x === F)
+--------------------------------------------------------------------------------
+-- | check if we are generating `Binary` correctly.
+prop_arbitraryBinary :: Property
+prop_arbitraryBinary = forAll (arbitrary :: Gen Binary) $
+  \(Binary (x, xs)) -> all (`elem` [T, F]) (x:xs)
+--------------------------------------------------------------------------------
 -- | check "bit" test cases generation.
 prop_genBitTestCases :: Property
 prop_genBitTestCases = forAll genBitTestCases $
@@ -587,18 +629,6 @@ prop_genBinNumTestCases = forAll genBinNumTestCase $
                     (x2 =/= "" .&&. x3 =/= "") .&&.
                     (all (`elem` ['0', '1']) x2) .&&.
                     (all isDigit x3)
---------------------------------------------------------------------------------
--- | check if we are generating `Bit` correctly.
-prop_arbitraryBit :: Property
-prop_arbitraryBit = forAll (arbitrary :: Gen Bit) $
-  \x  -> classify (x == T) "T" $
-         classify (x == F) "F" $
-         (x === T) .||. (x === F)
---------------------------------------------------------------------------------
--- | check if we are generating `Binary` correctly.
-prop_arbitraryBinary :: Property
-prop_arbitraryBinary = forAll (arbitrary :: Gen Binary) $
-  \(Binary (x, xs)) -> all (`elem` [T, F]) (x:xs)
 --------------------------------------------------------------------------------
 -- | check if `isBin` does what is expected.
 prop_isBin :: Property
@@ -646,35 +676,6 @@ prop_decimal = forAll genBinNumTestCase $
 --------------------------------------------------------------------------------
 --------------------------------------------------------------------------------
 -- | test the other generators!
---------------------------------------------------------------------------------
--- | check if generated `mixed` `Binary` is valid.
-prop_genMixedBinary :: Property
-prop_genMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
-  \(bin, mix) -> let bins   = show bin
-                     binPre = isPrefixOf bins mix
-                     binSuf = isSuffixOf bins mix
-                 in classify binPre "has binary prefix" $
-                    classify binSuf "has binary suffix" $
-                    classify (notBin mix) "not binary string" $
-                    binNum bin .&&.
-                    binPre .&&.
-                    binSuf .&&.
-                    case stripPrefix bins mix of
-                      Just (x:_)  -> property $ nonBin x
-                      _           -> property False
---------------------------------------------------------------------------------
--- | check if generated "non-binary" is valid.
-prop_genNonBinaryStrPrefix :: Property
-prop_genNonBinaryStrPrefix = forAll genNonBinaryStrPrefix $
-  \nonbin -> classify (nonbin == "") "empty" $
-             classify (nonbin == "0b") "= 0b" $
-             classify (isPrefixOf "0b" nonbin) "start with \"0b\"" $
-             classify (notBin nonbin) "non-binary string" $
-             case nonbin of
-                ""            -> property True
-                "0b"          -> property True
-                ('0':'b':s:_) -> property $ nonBin s
-                _             -> property $ nonBin (head nonbin)
 --------------------------------------------------------------------------------
 -- | check if generated `Int` string is valid.
 prop_genIntStr :: Property
@@ -766,6 +767,35 @@ prop_genNonNumStr = forAll genNonNumStr $
         startsWithMinus0 (_:[])  = False
         startsWithMinus0 (x:y:_) = x == '-' && y == '0'
 --------------------------------------------------------------------------------
+-- | check if generated `mixed` `Binary` is valid.
+prop_genMixedBinary :: Property
+prop_genMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
+  \(bin, mix) -> let bins   = show bin
+                     binPre = isPrefixOf bins mix
+                     binSuf = isSuffixOf bins mix
+                 in classify binPre "has binary prefix" $
+                    classify binSuf "has binary suffix" $
+                    classify (notBin mix) "not binary string" $
+                    binNum bin .&&.
+                    binPre .&&.
+                    binSuf .&&.
+                    case stripPrefix bins mix of
+                      Just (x:_)  -> property $ nonBin x
+                      _           -> property False
+--------------------------------------------------------------------------------
+-- | check if generated "non-binary" is valid.
+prop_genNonBinaryStrPrefix :: Property
+prop_genNonBinaryStrPrefix = forAll genNonBinaryStrPrefix $
+  \nonbin -> classify (nonbin == "") "empty" $
+             classify (nonbin == "0b") "= 0b" $
+             classify (isPrefixOf "0b" nonbin) "start with \"0b\"" $
+             classify (notBin nonbin) "non-binary string" $
+             case nonbin of
+                ""            -> property True
+                "0b"          -> property True
+                ('0':'b':s:_) -> property $ nonBin s
+                _             -> property $ nonBin (head nonbin)
+--------------------------------------------------------------------------------
 -- | check if generated "binary" string is valid.
 prop_genBinaryStr :: Property
 prop_genBinaryStr = forAll genBinaryStr $
@@ -837,6 +867,19 @@ prop_genBadBinDec = forAll genBadBinDec $
 --------------------------------------------------------------------------------
 -- | properties -- test common/supporting functions.
 --------------------------------------------------------------------------------
+-- | check `fromEnum`, `toEnum` for `Bit.
+-- REF: `toEnum. forEnum`, see /u/bradrn @ https://tinyurl.com/2hv5btyk (so)
+prop_bitEnum :: Property
+prop_bitEnum = forAll (genBitEnum :: Gen (Bit, Int)) $
+  \(bit, int) -> let f :: Int -> Int = \x -> fromEnum (toEnum x :: Bit)
+                     g :: Bit -> Bit = toEnum . fromEnum
+                 in f int `elem` [0, 1] .&&. g bit === bit
+  where genBitEnum :: Gen (Bit, Int)
+        genBitEnum = do
+          bit <- arbitrary :: Gen Bit
+          int <- (arbitrary :: Gen Int) `suchThat` (>= 0)
+          return (bit, int)
+--------------------------------------------------------------------------------
 -- | check `Bit` read.
 prop_readBit :: Property
 prop_readBit = forAll (arbitrary :: Gen Bit) $
@@ -899,20 +942,12 @@ prop_readsPrecBinNonBinary = forAll genNonBinaryStrPrefix $
           in (y === []) .&&. (x === y)
 --------------------------------------------------------------------------------
 -- | check if `asBinary` works as expected.
--- REF: see /u/ fp_mora, /u/ dave4420 @ https://tinyurl.com/2p9cjft5 (so)
--- REF: see `iterate` in Data.List @ https://tinyurl.com/ycxb9uaw
--- iterate :: (a -> a) -> a -> [a]
--- iterate f x =  x : iterate f (f x)
--- iterate f x == [x, f x, f (f x), ...]
--- zipWith :: (a -> b -> c) -> [a] -> [b] -> [c]
 prop_asBinary :: Property
-prop_asBinary = forAll ((arbitrary :: Gen Int) `suchThat` (>= 0)) $
+prop_asBinary = forAll ((arbitrary :: Gen Integer) `suchThat` (>= 0)) $
   \int  -> classify (int == 0) "= 0" $
            classify (int > 0) "> 0" $
-           let x :: [Bit]  = toBits $ asBinary int
-               y :: [Int]  = map fromEnum (reverse x)
-               f :: [Int]  = iterate (* 2) (1 :: Int)
-           in int === (sum $ zipWith (*) y f)
+           let bin :: Binary = asBinary int
+           in int === binaryValue bin
 --------------------------------------------------------------------------------
 -- | check if `asBinary` fails as expected for negative numbers.
 -- NOTE: `/=` returns `Bool`, which avoids `Exception thrown while showing test 
@@ -956,6 +991,13 @@ prop_readBinMixed = expectFailure $
 prop_readBinBad :: Property
 prop_readBinBad = expectFailure $ forAll genBadBinaryStr64 $
   \bad  -> (readBin bad :: [(Int, String)]) /= []
+--------------------------------------------------------------------------------
+-- | check `fromBinary`.
+prop_fromBinary :: Property
+prop_fromBinary = forAll (arbitrary :: Gen Binary) $
+  \bin -> let int  :: Integer = fromBinary bin
+              bin' :: Binary  = asBinary int
+          in bin === bin'
 --------------------------------------------------------------------------------
 -- | check if `isNum` works for both numbers as well as non-numbers.
 -- check for numbers.
