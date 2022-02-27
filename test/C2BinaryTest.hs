@@ -29,7 +29,7 @@ import Numeric (readInt, showIntAtBase)
 import Data.Char (isDigit, digitToInt, intToDigit, isAscii, chr, isSpace)
 import Data.Word (Word8, Word16, Word64)
 import Data.Bits ((.|.), shiftL)
-import Data.List (isPrefixOf, isSuffixOf, stripPrefix, dropWhileEnd)
+import Data.List (isPrefixOf, isSuffixOf, stripPrefix, dropWhileEnd, genericLength)
 
 import C2Binary
 import Common (ghciRunner)
@@ -212,8 +212,8 @@ mkBinary []     = error "C2BinaryTest.mkBinary: [] supplied."
 mkBinary (x:xs) = Binary (x, xs)
 
 -- | number of bits in the `Binary` value.
-binSize :: Binary -> Int
-binSize = length . toBits
+binSize :: Binary -> Integer
+binSize = genericLength . toBits
 
 -- | convert a positive (>= 0) `Integral` value to `Binary`.
 -- EXAMPLE: `254 :: Int` => `Binary (T, [T, T, T, T, T, T, F])`.
@@ -940,6 +940,44 @@ prop_readsPrecBinNonBinary = forAll genNonBinaryStrPrefix $
   \bad -> let x :: [(Binary, String)] = readsPrec 0 bad
               y :: [(Binary, String)] = readsPrecBin 0 bad
           in (y === []) .&&. (x === y)
+--------------------------------------------------------------------------------
+-- | check `binaryValue` for boundary conditions.
+-- this test ensures `binaryValue` obeys boundary conditions but nothing more.
+-- (^) :: (Integral b, Num a) => a -> b -> a
+prop_binaryValueLimits :: Property
+prop_binaryValueLimits = forAll (arbitrary :: Gen Binary) $
+  \bin -> let int :: Integer = binaryValue bin
+          in int >= 0 .&&. int <= (2 :: Integer) ^ (binSize bin) - 1
+--------------------------------------------------------------------------------
+-- | check `binaryValue` invariance.
+-- we left-pad a `Binary` with `F`s & check that its value is unchanged.
+prop_binaryValueInvariance :: Property
+prop_binaryValueInvariance = forAll genData $
+  \(bin1, bin2) -> binaryValue bin1 === binaryValue bin2
+  where genData :: Gen (Binary, Binary)
+        genData = do
+          bin1 <- arbitrary :: Gen Binary
+          pad  <- listOf1 (arbitrary :: Gen Bit) `suchThat` (all (== F))
+          let bin2 = mkBinary $ pad ++ toBits bin1
+          return (bin1, bin2)
+--------------------------------------------------------------------------------
+-- | check `dropLeading0s` for binary input.
+prop_dropLeading0s :: Property
+prop_dropLeading0s = forAll genBinaryStr64 $
+  \bin -> case dropLeading0s bin of
+            Just x  -> let a = fromBin bin
+                           b = fromBin x
+                           n = length a - length b
+                       in replicate n '0' ++ b === a
+            Nothing -> property False
+--------------------------------------------------------------------------------
+-- | check `dropLeading0s` for non-binary input.
+-- `Just _` check is contrived to show the input that caused the failure.
+prop_dropLeading0sBad :: Property
+prop_dropLeading0sBad = forAll genBadBinaryStr64 $
+  \bad -> case dropLeading0s bad of
+            Just _  -> Just bad =/= Nothing
+            Nothing -> property True
 --------------------------------------------------------------------------------
 -- | check if `asBinary` works as expected.
 prop_asBinary :: Property
