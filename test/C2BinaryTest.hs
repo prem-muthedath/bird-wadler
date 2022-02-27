@@ -180,7 +180,7 @@ readsPrecBin d0 x = if d0 < 11 then f x else g x
                     (c, d)  :: ([Bit], String)  <- readBits  b
                   ]
 
--- | convert a `Binary` value to an `Integer` value.
+-- | convert a `Binary` value to an `Integer`.
 -- `Binary` can be any size, which is why we only allow Integer conversion.
 fromBinary :: Binary -> Integer
 fromBinary b = fst . head . readBin $ show b
@@ -215,7 +215,7 @@ mkBinary (x:xs) = Binary (x, xs)
 binSize :: Binary -> Int
 binSize = length . toBits
 
--- | convert an `Integral` value to `Binary`.
+-- | convert a positive (>= 0) `Integral` value to `Binary`.
 -- EXAMPLE: `254 :: Int` => `Binary (T, [T, T, T, T, T, T, F])`.
 --
 -- NOTE:
@@ -296,8 +296,8 @@ dropLeading0s bin | notBin bin     = Nothing
 
 -- | reads a "binary" string, returning the number it represents in decimal.
 -- 1. "binary" string must begin with "0b".
--- 2. empty string ("", "0b") & non-binary string throw error. non-binary string 
---    includes anything that begins with '-'; i.e., -ve numbers are NOT allowed.
+-- 2. empty string ("", "0b") & non-binary strings throw error. non-binary 
+--    strings include those that begin with '-' (.e., -ve numbers) as well.
 -- 3. `readBin` always does a full parse and always returns a value >= 0;
 -- 4. if you call `readBin` with a binary string whose size, excluding its 
 --    prefix "0b", is > 63, you should use an `Integer` type annotation, instead 
