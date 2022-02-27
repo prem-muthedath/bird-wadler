@@ -962,6 +962,7 @@ prop_binaryValueInvariance = forAll genData $
           return (bin1, bin2)
 --------------------------------------------------------------------------------
 -- | check `dropLeading0s` for binary input.
+-- replicate :: Int -> a -> [a]
 prop_dropLeading0s :: Property
 prop_dropLeading0s = forAll genBinaryStr64 $
   \bin -> case dropLeading0s bin of
