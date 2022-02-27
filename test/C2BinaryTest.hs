@@ -212,6 +212,7 @@ mkBinary []     = error "C2BinaryTest.mkBinary: [] supplied."
 mkBinary (x:xs) = Binary (x, xs)
 
 -- | number of bits in the `Binary` value.
+-- genericLength :: Num i => [a] -> i
 binSize :: Binary -> Integer
 binSize = genericLength . toBits
 
@@ -973,7 +974,7 @@ prop_dropLeading0s = forAll genBinaryStr64 $
             Nothing -> property False
 --------------------------------------------------------------------------------
 -- | check `dropLeading0s` for non-binary input.
--- `Just _` check is contrived to show the input that caused the failure.
+-- `Just _` check contrived to show the input that caused the failure.
 prop_dropLeading0sBad :: Property
 prop_dropLeading0sBad = forAll genBadBinaryStr64 $
   \bad -> case dropLeading0s bad of
