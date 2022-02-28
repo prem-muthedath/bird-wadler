@@ -942,6 +942,16 @@ prop_readsPrecBinNonBinary = forAll genNonBinaryStrPrefix $
               y :: [(Binary, String)] = readsPrecBin 0 bad
           in (y === []) .&&. (x === y)
 --------------------------------------------------------------------------------
+-- | check `mkBinary` for good input.
+prop_mkBinary :: Property
+prop_mkBinary = forAll (listOf1 (arbitrary :: Gen Bit)) $
+  \bits -> toBits (mkBinary bits) === bits
+--------------------------------------------------------------------------------
+-- | check `mkBinary` for empty list.
+prop_mkBinaryEmpty :: Property
+prop_mkBinaryEmpty = expectFailure $ forAll (listOf (arbitrary :: Gen Bit)) $
+  \bits -> toBits (mkBinary bits) /= bits
+--------------------------------------------------------------------------------
 -- | check `binaryValue` for boundary conditions.
 -- this test ensures `binaryValue` obeys boundary conditions but nothing more.
 -- (^) :: (Integral b, Num a) => a -> b -> a
@@ -970,7 +980,9 @@ prop_dropLeading0s = forAll genBinaryStr64 $
             Just x  -> let a = fromBin bin
                            b = fromBin x
                            n = length a - length b
-                       in replicate n '0' ++ b === a
+                       in classify (all (== '0') a) "all 0s" $
+                          classify (n > 0) "begin with 0" $
+                          replicate n '0' ++ b === a
             Nothing -> property False
 --------------------------------------------------------------------------------
 -- | check `dropLeading0s` for non-binary input.
