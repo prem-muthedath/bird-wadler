@@ -33,11 +33,11 @@ import Control.Monad (foldM)
 -- | convert `Int` string to 64-bit binary string.
 -- REF: /u/ pat, /u/ delta @ https://tinyurl.com/mpers6md (so)
 -- NOTES:
---  1. allowed `Int` range:  0 .. 2^63 -1 or 0 .. 9223372036854775807.
+--  1. allowed `Int` range:  0 .. 2^63 - 1 or 0 .. 9223372036854775807.
 --  2. `Int` string example: "255".
 --  3. "binary" string contains only '1' and '0'; 8-bit example: "11001001".
 --  4. in this code, stuff like "9\f", as well as "\f9", end up as a valid 
---     number because `readmaybe "9\f"` = 9. in fact, any number string starting 
+--     number because `readMaybe "9\f"` = 9. in fact, any number string starting 
 --     or ending with any character determined by `Data.Char.isSpace` as space 
 --     will be read as a number. for example, `readMaybe "\r9\f\r\t" = 9`.
 --  SAMPLE Int OUT-OF-RANGE INPUT/OUTPUT:
@@ -74,7 +74,7 @@ toBinary = go 64 []
         -- NOTE:
         --  1. we continue the recursion until `n == 0`, because we want the 
         --     leading zeroes in the binary representation, which means you 
-        --     can't stop the coversion when the value becomes 0.
+        --     can't stop the conversion when the value becomes 0.
         --  2. `go` prepends to a list.
         --  3. /u/ pat's code faulty because it reverses the list when `n = 0`.
         go 0 acc _ = acc
@@ -137,9 +137,16 @@ binStrToDecS xs = foldM step 0 xs
 --------------------------------------------------------------------------------
 -- | convert a "binary" decimal to decimal.
 -- "binary" decimal has digits 1 or 0.  for example, `11011101 :: Int`.
--- "binary" decimal's type is an `Integral` instance..
+-- "binary" decimal's type is an `Integral` instance.
 -- output "decimal" has the same type as "binary" decimal.
 -- REF: code from /u/ willem van onsem @ https://tinyurl.com/32bv54jd (so)
+--    a simpler version of the code below:
+--        bintodec :: Integral i => i -> i
+--        bintodec 0 = 0
+--        bintodec i = 2 * bintodec (div i 10) + (mod i 10)
+--    'so what we do here is using `div i 10` to "shift the number one to the 
+--    right". we use recursion & multiply with 2 to use binary representation.  
+--    we use `mod i 10` to get the last digit that we then add to the number.'
 -- fmap :: Functor f => (a -> b) -> f a -> f b
 -- div :: Integral a => a -> a -> a
 -- mod :: Integral a => a -> a -> a
