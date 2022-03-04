@@ -55,6 +55,7 @@ asInteger = read
 
 -- | `True` if string represents a valid number, positive or negative.
 -- we use pattern guards. see /u/ melpomene @ https://tinyurl.com/3vfnxwa7 (so)
+-- isDigit :: Char -> Bool -- selects ASCII digits, i.e., '0' .. '9'.
 isNum :: String -> Bool
 isNum s | ""          <- s = False
         | ('0':[])    <- s = True
@@ -67,6 +68,7 @@ isNum s | ""          <- s = False
               f = all isDigit
 
 -- | `True` if string does not represent a valid number.
+-- not :: Bool -> Bool
 notNum :: String -> Bool
 notNum = not . isNum
 --------------------------------------------------------------------------------
@@ -79,6 +81,7 @@ notNum = not . isNum
 -- REF: `Bit`: /u/ erikr @ https://tinyurl.com/2p87s5kv (so)
 -- REF: `Num` defined in GHC.Num @ https://tinyurl.com/dkkx8j3y (hackage)
 -- `Binary` implementation by Prem Muthedath.
+-- `Binary` definition ensures that `Binary` will always have atleast 1 `Bit`.
 newtype Binary = Binary (Bit, [Bit])
 data Bit = T | F deriving Eq
 
@@ -90,6 +93,7 @@ instance Enum Bit where
   toEnum n   = if even n then F else T
 
 instance Num Bit where
+  -- REF: https://hackage.haskell.org/package/base-4.14.0.0/docs/GHC-Num.html
   -- fromInteger :: Num a => Integer -> a
   -- (+) :: a -> a -> a infixl 6
   -- (*) :: a -> a -> a infixl 7
@@ -116,6 +120,7 @@ instance Read Bit where
     _         -> []
 
 instance Num Binary where
+  -- REF: https://hackage.haskell.org/package/base-4.14.0.0/docs/GHC-Num.html
   -- fromInteger :: Num a => Integer -> a
   -- (+) :: a -> a -> a infixl 6
   -- (*) :: a -> a -> a infixl 7
@@ -129,6 +134,7 @@ instance Num Binary where
   abs a       = a
   signum a    = if all (== F) (toBits a) then Binary (F, []) else Binary (T, [])
 
+-- | REF: see GHC.Classes @ https://tinyurl.com/bdcsra8t
 instance Eq Binary where
   a == b = binaryValue a == binaryValue b
 
@@ -154,6 +160,9 @@ instance Read Binary where
 -- | alternative implementation of `readsPrec` for `Binary`.
 -- implementation follows `++` pattern for `readsPrec` in haskell 2010 report.
 -- i wrote it as an exercise to compare with `readsPrec` in `Read Binary`.
+--
+-- i first saw this sort of `++` equivalence in `readsTree` implementations at 
+-- https://www.cs.auckland.ac.nz/references/haskell/haskell-intro-html/stdclasses.html
 --
 -- NOTE: the first call to `readsPrecBin` should have precedence < 11. as is 
 -- custom, the first call should use 0 as precedence.
@@ -230,6 +239,14 @@ binSize = genericLength . toBits
 -- shoIntAtBase: shows a non-negative Integral number using the base specified 
 -- by the 1st argument, and the character representation specified by the 2nd.
 -- showIntAtBase :: (Integral a, Show a) => a -> (Int -> Char) -> a -> ShowS
+--
+-- convert an `Int` in the range 0..15 to the corresponding single digit `Char`.
+-- intToDigit :: Int -> Char
+--
+-- convert a single digit `Char` to the corresponding `Int`. this function fails 
+-- unless its argument satisfies isHexDigit, but recognises both upper- and 
+-- lower-case hexadecimal digits (that is, '0'..'9', 'a'..'f', 'A'..'F').
+-- digitToInt :: Char -> Int
 asBinary :: (Integral a, Show a) => a -> Binary
 asBinary i | i >= 0     = mkBinary $ map (toEnum . digitToInt) showAsBinary
            | otherwise  = error msg
@@ -249,8 +266,8 @@ asBinDec = read . fromBin . show
 --------------------------------------------------------------------------------
 -- | `True` if the string is binary.
 -- 1. a binary string begins with "0b";
--- 2. &,all remaiining elements in the binary string are binary ('0's & '1's).
--- 3. string that has nothing but the "0b" prefix, just like "", is non-binary.
+-- 2. & all remaiining elements in the binary string are binary ('0's & '1's).
+-- 3. string that has nothing but the "0b" prefix, like "0b", is non-binary.
 allBin :: String -> Bool
 allBin []           = False
 allBin ('0':'b':[]) = False
@@ -265,7 +282,7 @@ isBin = (`elem` ['0', '1'])
 -- 1. string is non-binary if it does not begin with "0b";
 -- 2. a "0b"-prefix string is non-binary if among its non-prefix elements we 
 --    have >= 1 non-binary characters.
--- 3. string that has nothing but the "0b" prefix, just like "", is non-binary.
+-- 3. string that has nothing but the "0b" prefix is non-binary.
 notBin :: String -> Bool
 notBin ""           = True
 notBin ('0':'b':[]) = True
@@ -967,9 +984,32 @@ prop_binaryValueInvariance = forAll genData $
   \(bin1, bin2) -> binaryValue bin1 === binaryValue bin2
   where genData :: Gen (Binary, Binary)
         genData = do
+          bin1  <- arbitrary :: Gen Binary
+          zeros <- listOf1 (arbitrary :: Gen Bit) `suchThat` (all (== F))
+          let bin2 = mkBinary $ zeros ++ toBits bin1
+          return (bin1, bin2)
+--------------------------------------------------------------------------------
+-- | check if `binaryValue` differs, as it should, if you prepend >= 1 `T`.
+prop_binaryValuePrepend :: Property
+prop_binaryValuePrepend = forAll genData $
+  \(bin1, bin2) -> binaryValue bin1 =/= binaryValue bin2
+  where genData :: Gen (Binary, Binary)
+        genData = do
           bin1 <- arbitrary :: Gen Binary
-          pad  <- listOf1 (arbitrary :: Gen Bit) `suchThat` (all (== F))
-          let bin2 = mkBinary $ pad ++ toBits bin1
+          bits <- listOf1 (arbitrary :: Gen Bit) `suchThat` (any (== T))
+          let bin2 = mkBinary $ bits ++ toBits bin1
+          return (bin1, bin2)
+--------------------------------------------------------------------------------
+-- | check if `binaryValue` differs, as it should, if you append >= 1 `Bit`.
+prop_binaryValueAppend :: Property
+prop_binaryValueAppend = forAll genData $
+  \(bin1, bin2) -> binaryValue bin1 =/= binaryValue bin2
+  where genData :: Gen (Binary, Binary)
+        genData = do
+          bin1 <- mkBinary <$> listOf1 (arbitrary :: Gen Bit)
+                                       `suchThat` (any (== T))
+          bits <- listOf1 (arbitrary :: Gen Bit)
+          let bin2 = mkBinary $ toBits bin1 ++ bits
           return (bin1, bin2)
 --------------------------------------------------------------------------------
 -- | check `dropLeading0s` for binary input.
