@@ -981,7 +981,8 @@ prop_binaryValueLimits = forAll (arbitrary :: Gen Binary) $
 -- we left-pad a `Binary` with `F`s & check that its value is unchanged.
 prop_binaryValueInvariance :: Property
 prop_binaryValueInvariance = forAll genData $
-  \(bin1, bin2) -> binaryValue bin1 === binaryValue bin2
+  \(bin1, bin2) -> classify (binaryValue bin1 == 0) "all F" $
+                   binaryValue bin1 === binaryValue bin2
   where genData :: Gen (Binary, Binary)
         genData = do
           bin1  <- arbitrary :: Gen Binary
