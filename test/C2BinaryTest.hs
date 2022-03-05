@@ -981,7 +981,7 @@ prop_binaryValueLimits = forAll (arbitrary :: Gen Binary) $
 -- we left-pad a `Binary` with `F`s & check that its value is unchanged.
 prop_binaryValueInvariance :: Property
 prop_binaryValueInvariance = forAll genData $
-  \(bin1, bin2) -> classify (binaryValue bin1 == 0) "all F" $
+  \(bin1, bin2) -> classify (binaryValue bin1 == 0) "all 0" $
                    binaryValue bin1 === binaryValue bin2
   where genData :: Gen (Binary, Binary)
         genData = do
@@ -993,7 +993,8 @@ prop_binaryValueInvariance = forAll genData $
 -- | check if `binaryValue` differs, as it should, if you prepend >= 1 `T`.
 prop_binaryValuePrepend :: Property
 prop_binaryValuePrepend = forAll genData $
-  \(bin1, bin2) -> binaryValue bin1 =/= binaryValue bin2
+  \(bin1, bin2) -> classify (bin1 == Binary (F, [])) "prepend to all 0" $
+                   binaryValue bin1 =/= binaryValue bin2
   where genData :: Gen (Binary, Binary)
         genData = do
           bin1 <- arbitrary :: Gen Binary
@@ -1004,14 +1005,15 @@ prop_binaryValuePrepend = forAll genData $
 -- | check if `binaryValue` differs, as it should, if you append >= 1 `Bit`.
 prop_binaryValueAppend :: Property
 prop_binaryValueAppend = forAll genData $
-  \(bin1, bin2) -> binaryValue bin1 =/= binaryValue bin2
-  where genData :: Gen (Binary, Binary)
+  \(bin1, bits) -> let bin2 = mkBinary $ toBits bin1 ++ bits
+                   in classify (all (== F) bits) "append all 0" $
+                      binaryValue bin1 =/= binaryValue bin2
+  where genData :: Gen (Binary, [Bit])
         genData = do
           bin1 <- mkBinary <$> listOf1 (arbitrary :: Gen Bit)
                                        `suchThat` (any (== T))
           bits <- listOf1 (arbitrary :: Gen Bit)
-          let bin2 = mkBinary $ toBits bin1 ++ bits
-          return (bin1, bin2)
+          return (bin1, bits)
 --------------------------------------------------------------------------------
 -- | check `dropLeading0s` for binary input.
 -- replicate :: Int -> a -> [a]
