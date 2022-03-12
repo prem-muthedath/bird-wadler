@@ -385,7 +385,7 @@ genIntStr = do
   edge  :: Int    <- elements [0, upperInt]
   inner :: Int    <- (arbitrary :: Gen Int)
                      `suchThat`
-                     (\x -> x > 0 && x < upperInt)
+                     (\x -> x >= 0 && x <= upperInt)
   mix   :: String <- concat <$> shuffle [show inner, spac]
   frequency [ (1, return $ show edge)
             , (3, return mix)
@@ -400,11 +400,12 @@ genNonDigitChar = (arbitrary :: Gen Char) `suchThat` (not . isDigit)
 -- | generate "bad" `Int` string.
 -- "bad Int" strings can:
 --    1. be empty,
---    2. contain non-digits,
---    3. represent negative numbers or numbers beyond `Int` upper limit,
---    4. have leading/trailing spaces in (3).
---    5. contain a mix of digits & non-digits.
---    6. NEVER be pure numbers or numbers with leading/trailing spaces within 
+--    2. be spaces,
+--    3. contain non-digits,
+--    4. represent negative numbers or numbers beyond `Int` upper limit,
+--    5. have leading/trailing spaces in (4).
+--    6. contain a mix of digits & non-digits.
+--    7. NEVER be pure numbers or numbers with leading/trailing spaces within 
 --       the range `0 .. maxBound :: Int`.
 --    EXAMPLES: "-2", "", "9223372036854775845", "1/lk", "\SI;\SO", "\r\r-4".
 genBadIntStr :: Gen String
@@ -431,7 +432,8 @@ genBadIntStr = do
                     (\xs -> any (not . isDigit) xs &&
                             any isDigit xs &&
                             trim' xs == xs) -- eliminate leading/trailing spaces
-  frequency [ (1, return str)
+  frequency [ (1, return spc)
+            , (1, return str)
             , (1, return neg)
             , (1, return big)
             , (1, return mix1)
@@ -440,26 +442,30 @@ genBadIntStr = do
             ]
 --------------------------------------------------------------------------------
 -- | generate a non-number string.
--- EXAMPLES: "", "00815","-00", "\141574\63324&e+Z!", "-00026589".
+-- EXAMPLES: "", "\r", "\r1", "00815","-00", "\141574\63324&e+Z!", "-00026589".
 genNonNumStr :: Gen String
 genNonNumStr = do
-  pre :: String <- listOf1 (elements "-0")
-                  `suchThat`
-                  -- make sure we return a string of at least length 2. this 
-                  -- will ensure that we never generate a "0", a valid number, 
-                  -- but we can expect to generate a "00", a non-number.
-                  -- "< 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs > 1 && length xs < 64)
-  num :: String <- listOf ((arbitrary :: Gen Char) `suchThat` isDigit)
-                  `suchThat`
-                  -- "< 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs < 64)
-  str :: String <- listOf genNonDigitChar
-                  `suchThat`
-                  -- "< 64" ensures that we stay within `Int` range.
-                  (\xs -> length xs < 64)
+  pre   :: String <- listOf1 (elements "-0")
+                     `suchThat`
+                     -- make sure we return a string of at least length 2. this 
+                     -- will ensure that we never generate a "0", a valid 
+                     -- number, but we can expect to generate a "00", a 
+                     -- non-number.
+                     -- "< 64" ensures that we stay within `Int` range.
+                     (\xs -> length xs > 1 && length xs < 64)
+  num   :: String <- listOf ((arbitrary :: Gen Char) `suchThat` isDigit)
+                     `suchThat`
+                     -- "< 64" ensures that we stay within `Int` range.
+                     (\xs -> length xs < 64)
+  str   :: String <- listOf genNonDigitChar
+                     `suchThat`
+                     -- "< 64" ensures that we stay within `Int` range.
+                     (\xs -> length xs < 64)
+  numSp :: String <- concat <$> do sp <- gen1Spaces
+                                   shuffle [sp, num]
   frequency [ (1, return $ pre ++ num)
             , (2, return str)
+            , (1, return numSp)
             ]
 --------------------------------------------------------------------------------
 -- | `Arbitrary` instance for `Bit`.
@@ -484,7 +490,7 @@ genBitTestCases = do
   return (bin, nonbin)
 
 -- | generate binary & non-binary strings to test common functions like 
--- `allBin`, `notBin`, toBin, `fromBin`:
+-- `allBin`, `notBin`, `toBin`, `fromBin`:
 genBinStrTestCases :: Gen (String, String, String, String, String)
 genBinStrTestCases = do
   bin     <- ("0b" ++) <$> listOf1 ((arbitrary :: Gen Char) `suchThat` isBin)
@@ -561,15 +567,20 @@ genBinaryStr64 = show <$> ((arbitrary :: Gen Binary)
 -- 2. can be EMPTY;
 -- 3. may have binary characters '0' & '1';
 -- 4. is assured to have 1 or more non-binary characters
--- 5. may have leading/trailing white spaces, including stuff like "\n\t".
+-- 5. may have leading/trailing white spaces, including stuff like "\n\t";
+-- 6. may be "binary" string but having leading/trailing spaces.
 -- EXAMPLES; "", "2\NAKH", "6", "f", "0b\1053986aSsm7 bL\128707", "+1\151779".
 genBadBinaryStr :: Gen String
 genBadBinaryStr = do
-    pre    <- elements ["", "0b"]
-    nonbin <- listOf (arbitrary :: Gen Char)
-              `suchThat`
-              (any nonBin)
+    pre     <- elements ["", "0b"]
+    nonbin  <- listOf (arbitrary :: Gen Char)
+               `suchThat`
+               (any nonBin)
+    binSpac <- concat <$> do bin <- genBinaryStr
+                             sp  <- gen1Spaces
+                             shuffle [bin, sp]
     frequency [ (1,  return pre)
+              , (1,  return binSpac)
               , (2,  return $ pre ++ nonbin)
               , (10, return nonbin)
               ]
@@ -746,24 +757,26 @@ prop_genBadIntStr = forAll genBadIntStr $
 -- want it to return `Nothing` here, because -023 is a non-number for us.
 --
 -- so clearly there is a mismatch with what we want and what our model gives, 
--- and this mismatch ONLY occurs when we have leading zeroes.  in such cases, 
--- `readMaybe` ignores the leading zeroes and reads the rest. for all other 
+-- and this mismatch ONLY occurs when we have leading zeros.  in such cases, 
+-- `readMaybe` ignores the leading zeros and reads the rest. for all other 
 -- cases, what `readMaybe` returns matches what we define as a non-number.
 --
 -- so to use `readMaybe` as our model, in cases when `readMaybe` succeeds, we do 
 -- a length comparision of the original string with the string representation of 
--- the number `readMaybe` returns. in case of leading zeroes, this means that 
+-- the number `readMaybe` returns. in case of leading zeros, this means that 
 -- the read value will always be shorter than the original. this seems to work! 
 --
 -- NOTE: we use `>`, instead of `>=`, because all our values are expected to be 
 -- non-numbers. had this not been the case, we would have used `>=`.
 --
--- NOTE: also, when we have numbers, `genNonNUm` string always returns a string 
+-- NOTE: also, when we have numbers, `genNonNum` string always returns a string 
 -- of at least size 2. this is done on purpose, so that we never get a "0", 
 -- which is a valid number, but we can expect to find "00", a non-number.
 prop_genNonNumStr :: Property
 prop_genNonNumStr = forAll genNonNumStr $
   \s  -> classify (s == []) "empty" $
+         classify (s /= [] && trim' s == []) "all spaces" $
+         classify (s /= [] && trim' s /= s) "have leading/trailing spaces" $
          classify (startsWith00 s) "start with 00" $
          classify (startsWithMinus s) "start with -" $
          classify (startsWithMinus0 s) "start with -0" $
@@ -801,7 +814,7 @@ prop_genMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
                       Just (x:_)  -> property $ nonBin x
                       _           -> property False
 --------------------------------------------------------------------------------
--- | check if generated "non-binary" is valid.
+-- | check if generated "non-binary prefix" is valid.
 prop_genNonBinaryStrPrefix :: Property
 prop_genNonBinaryStrPrefix = forAll genNonBinaryStrPrefix $
   \nonbin -> classify (nonbin == "") "empty" $
@@ -844,6 +857,8 @@ prop_genBadBinaryStr = forAll genBadBinaryStr $
   \xs -> classify (notBin xs) "non-binary" $
          classify (xs == "") "empty" $
          classify (trim' xs /= xs) "contain leading/trailing spaces" $
+         classify ((xs /= trim' xs) &&
+          (allBin $ trim' xs)) "binary with leading/trailing spaces" $
          classify (xs == "0b") "= \"0b\"" $
          classify (length xs > 2 && take 2 xs == "0b") "begin with \"0b\"" $
          classify (any (== '0') xs) "has 0" $
@@ -926,7 +941,7 @@ prop_readBinary :: Property
 prop_readBinary = forAll (arbitrary :: Gen Binary) $
   \bin -> (bin, "") `elem` (readsPrec 0 (showsPrec 0 bin ""))
 --------------------------------------------------------------------------------
--- | check `Binary` read on s string that has a mix of `Binary` & non-binary.
+-- | check `Binary` read on string that has a mix of `Binary` & non-binary.
 prop_readMixedBinary :: Property
 prop_readMixedBinary = forAll (genMixedBinary :: Gen (Binary, String)) $
   \(bin, mix) -> classify (isBin . head . drop 2 $ mix) "have binary prefix" $
@@ -967,7 +982,7 @@ prop_mkBinary = forAll (listOf1 (arbitrary :: Gen Bit)) $
 -- | check `mkBinary` for empty list.
 prop_mkBinaryEmpty :: Property
 prop_mkBinaryEmpty = expectFailure $ forAll (listOf (arbitrary :: Gen Bit)) $
-  \bits -> toBits (mkBinary bits) /= bits
+  \bits -> toBits (mkBinary bits) == bits
 --------------------------------------------------------------------------------
 -- | check `binaryValue` for boundary conditions.
 -- this test ensures `binaryValue` obeys boundary conditions but nothing more.
