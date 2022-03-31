@@ -361,6 +361,15 @@ trim' = dropWhileEnd isSpace . dropWhile isSpace
 gen1Spaces :: Gen String
 gen1Spaces = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSpace
 --------------------------------------------------------------------------------
+-- | given a string, randomly pad (append/prepend) 1 or more spaces to it.
+-- shuffle :: [a] -> Gen [a]
+-- (<$>) :: Functor f => (a -> b) -> f a -> f b
+-- concat :: Foldable t => t [a] -> [a]
+genWith1Spaces :: String -> Gen String
+genWith1Spaces s = do
+  sp <- gen1Spaces
+  concat <$> shuffle [s, sp]
+--------------------------------------------------------------------------------
 -- | generate `Int` string, with values in range 0 .. 9223372036854775807.
 -- 1. `Int` strings represent positive numbers, and they are non-empty.
 -- 2. because of the use of `readMaybe` in `intStrToBinStr`, strings with space 
@@ -381,12 +390,11 @@ gen1Spaces = listOf1 $ (arbitrary :: Gen Char) `suchThat` isSpace
 --  EXAMPLES: "10", "1", "17", "\r9\n".
 genIntStr :: Gen String
 genIntStr = do
-  spac  :: String <- gen1Spaces
   edge  :: Int    <- elements [0, upperInt]
   inner :: Int    <- (arbitrary :: Gen Int)
                      `suchThat`
                      (\x -> x >= 0 && x <= upperInt)
-  mix   :: String <- concat <$> shuffle [show inner, spac]
+  mix   :: String <- genWith1Spaces (show inner)
   frequency [ (1, return $ show edge)
             , (3, return mix)
             , (20, return $ show inner)
@@ -421,8 +429,8 @@ genBadIntStr = do
                         , (fromIntegral upperInt :: Integer) + 
                           (10000000000000000000000000000000 :: Integer)
                         )
-  mix1 :: String <- concat <$> shuffle [neg, spc]
-  mix2 :: String <- concat <$> shuffle [big, spc]
+  mix1 :: String <- genWith1Spaces neg
+  mix2 :: String <- genWith1Spaces big
   -- generate a string that has a mix of digits & non-digits. however, the 
   -- non-digits are not all spaces, for if they were, we would end up with a 
   -- valid number (i.e., digits & spaces), not a "bad" `Int` string.  so we 
@@ -461,8 +469,7 @@ genNonNumStr = do
                      `suchThat`
                      -- "< 64" ensures that we stay within `Int` range.
                      (\xs -> length xs < 64)
-  numSp :: String <- concat <$> do sp <- gen1Spaces
-                                   shuffle [sp, num]
+  numSp :: String <- genWith1Spaces num
   frequency [ (1, return $ pre ++ num)
             , (2, return str)
             , (1, return numSp)
@@ -477,6 +484,7 @@ instance Arbitrary Binary where
   -- Control.Monad.liftM :: Monad m => (a1 -> r) -> m a1 -> m r
   -- Control.Monad.liftM2 :: Monad m => (a1 -> a2 -> r) -> m a1 -> m a2 -> m r
   -- listOf :: Gen a -> Gen [a]
+  -- (,) :: a -> b -> (a, b)
   arbitrary = liftM Binary $
                 liftM2 (,)
                        (arbitrary :: Gen Bit)
@@ -576,9 +584,8 @@ genBadBinaryStr = do
     nonbin  <- listOf (arbitrary :: Gen Char)
                `suchThat`
                (any nonBin)
-    binSpac <- concat <$> do bin <- genBinaryStr
-                             sp  <- gen1Spaces
-                             shuffle [bin, sp]
+    binSpac <- do bin <- genBinaryStr
+                  genWith1Spaces bin
     frequency [ (1,  return pre)
               , (1,  return binSpac)
               , (2,  return $ pre ++ nonbin)
@@ -1198,9 +1205,6 @@ prop_decToBitsFailure = expectFailure $
 -- NOTE: same problem pops up if you use `read x :: Int` to read a long binary 
 -- string. again, if you use `read x :: Integer` instead, the problem goes away.
 --
--- the conditional check in this property is contrived; i wrote it this way 
--- because i wanted quickcheck to show the "binary" input for the failure case.
---
 -- NOTE: this property may occasionaly fail in a particular set of 100 test runs 
 -- if the generated string in each of the 100 runs is < 64 in size. but this is 
 -- RARE, so if you see a failure, just re-run the test, and you'll see it pass.
@@ -1208,7 +1212,14 @@ prop_binStrToDecNegative :: Property
 prop_binStrToDecNegative = expectFailure $ forAll genBinaryStr $
     \bin -> case (binStrToDec (fromBin bin) :: Maybe Int) of
               Nothing  -> False
-              Just dec -> if dec >= 0 then bin == bin else bin /= bin
+              Just dec -> check bin dec
+    where check :: String -> Int -> Bool
+          check bin dec | dec < 0   = False
+                        | otherwise =
+                          case (genericLength bin :: Integer) > 63 of
+                              -- maxBound :: Bounded a => a
+                              True  -> dec > (maxBound :: Int)
+                              False -> dec <= (maxBound :: Int)
 --------------------------------------------------------------------------------
 -- | check "binary" string -> decimal conversion.
 prop_binStrToDec :: Property
