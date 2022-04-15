@@ -80,6 +80,7 @@ notNum = not . isNum
 -- REF: `Binary`: /u/ nicolas, /u/ ankur @ https://tinyurl.com/2p93mvah (so).
 -- REF: `Bit`: /u/ erikr @ https://tinyurl.com/2p87s5kv (so)
 -- REF: `Num` defined in GHC.Num @ https://tinyurl.com/dkkx8j3y (hackage)
+-- REF: non-empty lis: https://wiki.haskell.org/Non-empty_list
 -- `Binary` implementation by Prem Muthedath.
 -- `Binary` definition ensures that `Binary` will always have atleast 1 `Bit`.
 newtype Binary = Binary (Bit, [Bit])
