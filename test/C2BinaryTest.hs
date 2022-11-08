@@ -140,6 +140,8 @@ instance Eq Binary where
   a == b = binaryValue a == binaryValue b
 
 instance Show Binary where
+  -- fromEnum :: Enum a => a -> Int
+  -- Data.Char.intToDigit :: Int -> Char
   show (Binary (x, xs))  = toBin $ map (intToDigit . fromEnum) (x:xs)
 
 -- | `Read` instance for `Binary`; author: Prem Muthedath.
@@ -294,16 +296,20 @@ notBin _            = True
 nonBin :: Char -> Bool
 nonBin = not . isBin
 
--- | prefix "0b" to a string of 1s & 0s.
+-- | adds missing "0b" prefix to a string of 1s & 0s. returns string unchanged 
+-- if it already has the "0b" prefix. throws error if string is not 'binary.'
 toBin :: String -> String
-toBin ""              = ""
-toBin s | all isBin s = '0':'b':s
-        | otherwise   = s
+toBin "" = error $ "C2BinaryTest.toBin: empty string supplied."
+toBin s | allBin s    = s
+        | all isBin s = '0':'b':s
+        | otherwise   = error $ "C2BinaryTest.toBin: non-binary string " <> s <> " supplied."
 
--- | remove "0b" prefix of a binary string.
+-- | chops off any "0b" prefix of a binary string. errors if string not binary.
 fromBin :: String -> String
-fromBin s | allBin s  = drop 2 s
-          | otherwise = s
+fromBin "" = error $ "C2BinaryTest.fromBin: empty string supplied."
+fromBin s | allBin s    = drop 2 s
+          | all isBin s = s
+          | otherwise   = error $ "C2BinaryTest.fromBIn: non-binary string " <> s <> " supplied."
 
 -- | drop leading zeros from a binary string.
 -- returns `Nothing` if string is non-binary, even if it has a binary prefix.
@@ -689,17 +695,41 @@ prop_notBin = forAll genBinStrTestCases $
   \(x1, x2, x3, x4, x5) -> map notBin [x1, x2, x3, x4, x5]
                            === [False, True, True, True, True]
 
--- | check if `toBin` does what is expected.
+-- | check if `toBin` does what is expected when a binary string is passed.
 prop_toBin :: Property
 prop_toBin = forAll genBinStrTestCases $
-  \(x1, x2, x3, x4, x5) -> map toBin [x1, x2, x3, x4, x5]
-                           === [x1, '0':'b':x2, x3, x4, x5]
+  \(x1, x2, _, _, _) -> map toBin [x1, x2] === [x1, '0':'b':x2]
 
--- | check if `fromBin` does what is expected.
+-- | check if `toBin` fails when a non-binary string is passed.
+-- elements :: [a] -> Gen a (NOTE: generates one of the given values.)
+-- frequency :: [(Int, Gen a)] -> Gen a
+-- forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
+prop_toBinNonBin :: Property
+prop_toBinNonBin = expectFailure $ forAll genBinStrTestCases $
+  -- NOTE: we use `frequency` instead of `elements` because we want a greater 
+  -- chance of testing the empty string test case.
+  \(_, _, x3, x4, x5) -> let pick :: Gen String = frequency [(4, return x3),
+                                                             (1, return x4),
+                                                             (1, return x5)]
+                         in forAll pick $ \x -> toBin x /= ""
+
+-- | check if `fromBin` does what is expected when a binary string is passed.
 prop_fromBin :: Property
 prop_fromBin = forAll genBinStrTestCases $
-  \(x1, x2, x3, x4, x5) -> map fromBin [x1, x2, x3, x4, x5]
-                           === [drop 2 x1, x2, x3, x4, x5]
+  \(x1, x2, _, _, _) -> map fromBin [x1, x2] === [drop 2 x1, x2]
+
+-- | check if `fromBin` fails when a non-binary string is passed.
+-- elements :: [a] -> Gen a (NOTE: generates one of the given values.)
+-- frequency :: [(Int, Gen a)] -> Gen a
+-- forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
+prop_fromBinNonBin :: Property
+prop_fromBinNonBin = expectFailure $ forAll genBinStrTestCases $
+  -- NOTE: we use `frequency` instead of `elements` because we want a greater 
+  -- chance of testing the empty string test case.
+  \(_, _, x3, x4, x5) -> let pick :: Gen String = frequency [(4, return x3),
+                                                             (1, return x4),
+                                                             (1, return x5)]
+                         in forAll pick $ \x -> fromBin x /= x
 
 -- | check if `binNum` does what is expected.
 prop_binNum :: Property
