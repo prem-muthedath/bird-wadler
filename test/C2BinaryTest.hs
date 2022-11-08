@@ -309,7 +309,7 @@ fromBin :: String -> String
 fromBin "" = error $ "C2BinaryTest.fromBin: empty string supplied."
 fromBin s | allBin s    = drop 2 s
           | all isBin s = s
-          | otherwise   = error $ "C2BinaryTest.fromBIn: non-binary string " <> s <> " supplied."
+          | otherwise   = error $ "C2BinaryTest.fromBin: non-binary string " <> s <> " supplied."
 
 -- | drop leading zeros from a binary string.
 -- returns `Nothing` if string is non-binary, even if it has a binary prefix.
