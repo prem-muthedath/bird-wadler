@@ -354,7 +354,7 @@ binNum = allBin . show
 decimal :: (Num a, Show a) => a -> Bool
 decimal = notBin . show
 --------------------------------------------------------------------------------
--- | common utility functions
+-- | common utility functions.
 --------------------------------------------------------------------------------
 -- | trim leading & trailing white space characters, including '\n', etc.
 -- REF: /u/ spopejoy @ https://tinyurl.com/2aed54ax (so)
