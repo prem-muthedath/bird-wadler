@@ -1186,10 +1186,14 @@ prop_badIntStrToBinStr :: Property
 prop_badIntStrToBinStr = forAll genBadIntStr $
   \x -> let x' = trim' x in
         classify (x == "") "empty" $
+        classify (x /= "" && x' == "") "all spaces" $
         classify (notNum x') "non-number" $
         classify (isNum x') "number" $
         classify (notNum x' && x /= x') "non-numbers WITH lead/trail spaces" $
         classify (isNum x' && x /= x') "numbers WITH lead/trail spaces" $
+        classify (isNum x' && asInteger x < 0) "< 0" $
+        classify (isNum x' &&
+          asInteger x > (fromIntegral upperInt :: Integer)) "> 2 ^ 63 - 1" $
         case intStrToBinStr x of
             Left _  -> property True
             Right _ -> let x1 :: Int     = read x
